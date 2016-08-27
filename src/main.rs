@@ -1,4 +1,6 @@
 extern crate slack;
+#[macro_use] extern crate lazy_static;
+extern crate regex;
 
 mod types;
 mod dictionary;
