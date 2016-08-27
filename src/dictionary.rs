@@ -85,4 +85,14 @@ mod test {
             assert!(!d.is_solution(&word), "{:?} should NOT be a solution!", word);
         }
     }
+
+    #[test]
+    fn no_of_solutions_test() {
+        let d = Dictionary::new(WORDS.iter().map(|x| x.to_string()));
+
+        for (puzzle, expected) in NO_OF_SOLUTIONS_TESTS.iter().map(|x| (Puzzle(x.0.to_string()), x.1)) {
+            let actual = d.no_of_solutions(&puzzle);
+            assert!(expected == actual, "Puzzle: {:?}, Expected: {}, Actual: {}", puzzle, expected, actual);
+        }
+    }
 }

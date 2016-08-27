@@ -1,3 +1,4 @@
+#[derive(Debug)]
 pub struct Puzzle(pub String);
 #[derive(Hash, Eq, PartialEq, Debug)]
 pub struct Word(pub String);
