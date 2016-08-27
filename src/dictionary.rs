@@ -1,12 +1,22 @@
-use std::collections::{HashSet, HashMap};
+use std::collections::HashSet;
 use std::iter::FromIterator;
-use std::iter::Map;
-use std::iter::Iterator;
+use multimap::MultiMap;
+
 use super::types::*;
 
 pub struct Dictionary {
     words:  HashSet<Word>,
-    solutions: HashMap<String, Vec<String>>,
+    solutions: MultiMap<Puzzle, Word>,
+}
+
+fn sort_word(x: &String) -> String {
+    let mut cs: Vec<char> = x.chars().collect();
+    cs.sort();
+    cs.into_iter().collect()
+}
+
+fn sort_puzzle(&Puzzle(ref p): &Puzzle) -> Puzzle {
+    Puzzle(sort_word(&p))
 }
 
 impl Dictionary {
@@ -14,7 +24,16 @@ impl Dictionary {
         where I: Iterator<Item=String> {
 
         let word_it = it.map(|x| Word(x).normalize()).filter(|&Word(ref x)| x.chars().count() == 9);
-        Dictionary { words: HashSet::from_iter(word_it), solutions: HashMap::new(), }
+        let words = HashSet::from_iter(word_it);
+
+        let mut solutions = MultiMap::new();
+        for &Word(ref w) in &words {
+            let p = sort_word(w);
+            println!("Puzzle: {}, Word {}", p, w);
+            solutions.insert(Puzzle(p), Word(w.clone()));
+        }
+
+        Dictionary { words: words, solutions: solutions }
     }
 
     /// Check if a word is in the dictionary.
@@ -23,13 +42,18 @@ impl Dictionary {
     }
 
     /// Check how many solutions a given puzzle has in the dictionary.
-    pub fn no_of_solutions(&self, p: &Puzzle) -> u32 {
+    pub fn no_of_solutions(&self, p: &Puzzle) -> usize {
+        let sols = self.solutions.get_vec(&sort_puzzle(p));
+        if let Some(v) = sols {
+            return v.len();
+        }
+
         0
     }
 
     /// Find all solutions given a word
-    pub fn find_solutions(&self, p: &Puzzle) -> Vec<String> {
-        vec![]
+    pub fn find_solutions(&self, p: &Puzzle) -> Option<&Vec<Word>> {
+        self.solutions.get_vec(&sort_puzzle(p))
     }
 }
 
@@ -63,7 +87,7 @@ mod test {
         "abc", "abcdefghijkl", "ÅÄÖABC", "abcåäö",
     ];
 
-    const NO_OF_SOLUTIONS_TESTS: &'static [(&'static str, u32)] = &[
+    const NO_OF_SOLUTIONS_TESTS: &'static [(&'static str, usize)] = &[
         ("GALLTJUTA", 1),
         ("TJUTAGALL", 1),
         ("DATORSPEL", 2),
@@ -94,5 +118,22 @@ mod test {
             let actual = d.no_of_solutions(&puzzle);
             assert!(expected == actual, "Puzzle: {:?}, Expected: {}, Actual: {}", puzzle, expected, actual);
         }
+    }
+
+    #[test]
+    fn find_solutions_test() {
+        let d = Dictionary::new(WORDS.iter().map(|x| x.to_string()));
+
+        let puzzle = Puzzle("SPDATOREL".to_string());
+        let mut expected: Vec<String> = vec![
+            "DATORSPEL".to_string(),
+            "SPELDATOR".to_string()];
+        expected.sort();
+
+        let actual_words = d.find_solutions(&puzzle).unwrap();
+        let mut actual: Vec<String> = actual_words.iter().map(|&Word(ref w)| w.clone()).collect();
+        actual.sort();
+
+        assert!(expected == actual, "Expected {:?}, Actual {:?}", expected, actual);
     }
 }
