@@ -13,13 +13,13 @@ impl Dictionary {
     pub fn new<I>(it: I) -> Dictionary
         where I: Iterator<Item=String> {
 
-        let word_it = it.map(|x| Word::normalize(&Word(x)));
+        let word_it = it.map(|x| Word(x).normalize());
         Dictionary { words: HashSet::from_iter(word_it), solutions: HashMap::new(), }
     }
 
     /// Check if a word is in the dictionary.
     pub fn is_solution(&self, w: &Word) -> bool {
-        self.words.contains(&Word::normalize(&w))
+        self.words.contains(&w.normalize())
     }
 
     /// Check how many solutions a given puzzle has in the dictionary.
