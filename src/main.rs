@@ -2,9 +2,11 @@ extern crate slack;
 #[macro_use] extern crate lazy_static;
 extern crate regex;
 extern crate multimap;
+extern crate crypto;
 
 mod types;
 mod dictionary;
+mod logic;
 
 struct NiancatHandler;
 

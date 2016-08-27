@@ -4,6 +4,13 @@ use multimap::MultiMap;
 
 use super::types::*;
 
+pub trait CheckWord {
+    fn is_solution(&self, w: &Word) -> bool;
+    fn no_of_solutions(&self, p: &Puzzle) -> usize;
+    fn find_solutions(&self, p: &Puzzle) -> Option<Vec<Word>>;
+    fn has_solution(&self, p: &Puzzle) -> bool;
+}
+
 pub struct Dictionary {
     words:  HashSet<Word>,
     solutions: MultiMap<Puzzle, Word>,
@@ -35,14 +42,16 @@ impl Dictionary {
 
         Dictionary { words: words, solutions: solutions }
     }
+}
 
+impl CheckWord for Dictionary {
     /// Check if a word is in the dictionary.
-    pub fn is_solution(&self, w: &Word) -> bool {
+    fn is_solution(&self, w: &Word) -> bool {
         self.words.contains(&w.normalize())
     }
 
     /// Check how many solutions a given puzzle has in the dictionary.
-    pub fn no_of_solutions(&self, p: &Puzzle) -> usize {
+    fn no_of_solutions(&self, p: &Puzzle) -> usize {
         let sols = self.solutions.get_vec(&sort_puzzle(p));
         if let Some(v) = sols {
             return v.len();
@@ -52,13 +61,17 @@ impl Dictionary {
     }
 
     /// Find all solutions given a word
-    pub fn find_solutions(&self, p: &Puzzle) -> Option<&Vec<Word>> {
-        self.solutions.get_vec(&sort_puzzle(p))
+    fn find_solutions(&self, p: &Puzzle) -> Option<Vec<Word>> {
+        self.solutions.get_vec(&sort_puzzle(p)).cloned()
+    }
+
+    fn has_solution(&self, p: &Puzzle) -> bool {
+        self.solutions.contains_key(&sort_puzzle(p))
     }
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use super::*;
     use types::*;
 
@@ -135,5 +148,13 @@ mod test {
         actual.sort();
 
         assert!(expected == actual, "Expected {:?}, Actual {:?}", expected, actual);
+    }
+
+    #[test]
+    fn has_solution_test() {
+        let d = Dictionary::new(WORDS.iter().map(|x| x.to_string()));
+
+        assert!(d.has_solution(&Puzzle("SPELDATOR".to_string())));
+        assert!(!d.has_solution(&Puzzle("NOTAWORDX".to_string())));
     }
 }

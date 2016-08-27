@@ -1,7 +1,12 @@
-#[derive(Eq, PartialEq, Hash, Debug)]
+use std::fmt;
+
+#[derive(Eq, PartialEq, Hash, Clone, Debug)]
 pub struct Puzzle(pub String);
-#[derive(Hash, Eq, PartialEq, Debug)]
+#[derive(Hash, Eq, PartialEq, Clone, Debug)]
 pub struct Word(pub String);
+#[derive(Hash, Eq, PartialEq, Clone, Debug)]
+pub struct Name(pub String);
+
 
 use regex::Regex;
 
@@ -17,8 +22,14 @@ impl Word {
     }
 }
 
+impl fmt::Display for Puzzle {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
 #[cfg(test)]
-mod test {
+mod tests {
     use super::*;
 
     const NORMALIZATION_TESTS: &'static [(&'static str, &'static str)] = &[
