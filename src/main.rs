@@ -1,5 +1,8 @@
 extern crate slack;
 
+mod types;
+mod dictionary;
+
 struct NiancatHandler;
 
 impl slack::EventHandler for NiancatHandler {
