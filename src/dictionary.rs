@@ -13,7 +13,7 @@ impl Dictionary {
     pub fn new<I>(it: I) -> Dictionary
         where I: Iterator<Item=String> {
 
-        let word_it = it.map(|x| Word(x).normalize());
+        let word_it = it.map(|x| Word(x).normalize()).filter(|&Word(ref x)| x.chars().count() == 9);
         Dictionary { words: HashSet::from_iter(word_it), solutions: HashMap::new(), }
     }
 
@@ -79,6 +79,10 @@ mod test {
 
         for word in SOLUTION_TESTS.iter().map(|x| Word(x.to_string())) {
             assert!(d.is_solution(&word), "Word should be a solution: {:?}", word);
+        }
+
+        for word in NON_SOLUTION_TESTS.iter().map(|x| Word(x.to_string())) {
+            assert!(!d.is_solution(&word), "{:?} should NOT be a solution!", word);
         }
     }
 }
