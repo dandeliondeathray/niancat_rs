@@ -5,6 +5,7 @@ extern crate multimap;
 
 mod types;
 mod dictionary;
+mod logic;
 
 struct NiancatHandler;
 

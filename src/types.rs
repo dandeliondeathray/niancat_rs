@@ -18,7 +18,7 @@ impl Word {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use super::*;
 
     const NORMALIZATION_TESTS: &'static [(&'static str, &'static str)] = &[
