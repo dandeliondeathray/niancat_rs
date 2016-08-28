@@ -1,5 +1,7 @@
 use crypto::digest::Digest;
 use crypto::sha2::Sha256;
+use std::collections::{HashMap, HashSet};
+use std::iter::{FromIterator, repeat};
 use super::types::*;
 
 pub fn solution_hash(&Word(ref s): &Word, nick: &String) -> String {
@@ -7,6 +9,45 @@ pub fn solution_hash(&Word(ref s): &Word, nick: &String) -> String {
     hasher.input_str(s.as_str());
     hasher.input_str(nick.as_str());
     hasher.result_str()
+}
+
+pub fn string_to_dict(s: &String) -> HashMap<char, u32> {
+    let mut h = HashMap::new();
+    for c in s.chars() {
+        let counter = h.entry(c).or_insert(0);
+        *counter += 1;
+    }
+    h
+}
+
+pub fn non_match(&Puzzle(ref puzzle): &Puzzle, &Word(ref word): &Word) -> (String, String) {
+    let mut too_many = String::new();
+    let mut too_few = String::new();
+
+    let puzzle_chars = string_to_dict(&puzzle);
+    let word_chars = string_to_dict(&word);
+
+    let all_chars: HashSet<char> = HashSet::from_iter(puzzle.chars().chain(word.chars()));
+    for c in &all_chars {
+        let p_count: u32 = puzzle_chars.get(c).map(|&x| x).unwrap_or(0);
+        let w_count: u32 = word_chars.get(c).map(|&x| x).unwrap_or(0);
+
+        if w_count > p_count {
+            let count = w_count - p_count;
+            let char_string: String = repeat(c).cloned().take(count as usize).collect();
+            too_many.push_str(&char_string);
+        } else if w_count < p_count {
+            let count = p_count - w_count;
+            let char_string: String = repeat(c).cloned().take(count as usize).collect();
+            too_few.push_str(&char_string);
+        }
+    }
+    let mut tm: Vec<char> = too_many.chars().collect();
+    let mut tf: Vec<char> = too_few.chars().collect();
+    tm.sort();
+    tf.sort();
+
+    (tf.into_iter().collect(), tm.into_iter().collect())
 }
 
 #[cfg(test)]
@@ -43,11 +84,15 @@ mod tests {
         }
     }
 
-//    context("Solution hash") do
-//        for (word, nick, expected) in hash_tests
-//            @fact Niancat.solution_hash(utf8(word), utf8(nick)) --> expected
-//        end
-//    end
+    #[test]
+    fn non_match_test() {
+        for &(puzzle, word, too_many, too_few) in NON_MATCHING_TESTS {
+            let (actual_too_few, actual_too_many) =
+                non_match(&Puzzle(puzzle.to_string()), &Word(word.to_string()));
+            assert!(too_few.to_string() == actual_too_few, "Too few, expected: {:?}, actual {:?}, puzzle {:?}, word {:?}", too_few, actual_too_few, puzzle, word);
+            assert!(too_many.to_string() == actual_too_many, "Too many: expected {:?}, actual {:?}, puzzle {:?}, word {:?}", too_many, actual_too_many, puzzle, word);
+        }
+    }
 
 //    context("Non-matching help") do
 //        for (puzzle, word, too_many, too_few) in non_matching_tests
