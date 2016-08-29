@@ -11,7 +11,7 @@ pub type Channel = String;
 #[derive(Eq, PartialEq)]
 pub enum Response {
     GetCommand(Channel, Puzzle),
-    NoPuzzle(Channel),
+    NoPuzzleSet(Channel),
 }
 
 pub trait Command {
@@ -37,7 +37,7 @@ impl<'a> Command for GetCommand<'a> {
     fn apply(&self, state: &mut Niancat) -> Response {
         match state.puzzle {
             Some(ref puzzle) => Response::GetCommand(self.channel.clone(), puzzle.clone()),
-            None => Response::NoPuzzle(self.channel.clone())
+            None => Response::NoPuzzleSet(self.channel.clone())
         }
     }
 }
@@ -145,20 +145,18 @@ mod tests {
         assert!(actual == expected);
     }
 
-//    context("Get puzzle") do
-//        words = FakeWordDictionary(true, 1)
-//        command = GetPuzzleCommand(channel_id0, user_id0)
-//        logic = Logic(Nullable{Puzzle}(puzzle0), words, fake_members, Unsolutions(), 1)
-//        @fact handle(logic, command) --> GetPuzzleResponse(channel_id0, puzzle0, 1)
-//    end
-//
-//    context("Get puzzle when not set") do
-//        words = FakeWordDictionary(true, 1)
-//        command = GetPuzzleCommand(channel_id0, user_id0)
-//        logic = Logic(words, fake_members)
-//        @fact handle(logic, command) --> NoPuzzleSetResponse(channel_id0)
-//    end
-//
+    #[test]
+    fn no_puzzle_set_test() {
+        let chan = "channel".to_string();
+        let mut state = Niancat::new();
+        let command = GetCommand { channel: &chan };
+        let expected = Response::NoPuzzleSet(chan.clone());
+        let actual = command.apply(&mut state);
+
+        assert!(actual == expected);
+    }
+
+
 //    context("Set puzzle") do
 //        words = FakeWordDictionary(true, 1)
 //        logic = Logic(words, fake_members)
