@@ -2,7 +2,45 @@ use crypto::digest::Digest;
 use crypto::sha2::Sha256;
 use std::collections::{HashMap, HashSet};
 use std::iter::{FromIterator, repeat};
-use super::types::*;
+use multimap::MultiMap;
+
+use types::*;
+
+pub type Channel = String;
+
+#[derive(Eq, PartialEq)]
+pub enum Response {
+    GetCommand(Channel, Puzzle),
+    NoPuzzle(Channel),
+}
+
+pub trait Command {
+    fn apply(&self, state: &mut Niancat) -> Response;
+}
+
+pub struct Niancat {
+    puzzle: Option<Puzzle>,
+    solutions: MultiMap<Word, String>,
+}
+
+impl Niancat {
+    pub fn new() -> Niancat {
+        Niancat { puzzle: None, solutions: MultiMap::new() }
+    }
+}
+
+pub struct GetCommand<'a> {
+    channel: &'a String
+}
+
+impl<'a> Command for GetCommand<'a> {
+    fn apply(&self, state: &mut Niancat) -> Response {
+        match state.puzzle {
+            Some(ref puzzle) => Response::GetCommand(self.channel.clone(), puzzle.clone()),
+            None => Response::NoPuzzle(self.channel.clone())
+        }
+    }
+}
 
 pub fn solution_hash(&Word(ref s): &Word, nick: &String) -> String {
     let mut hasher = Sha256::new();
@@ -94,12 +132,19 @@ mod tests {
         }
     }
 
-//    context("Non-matching help") do
-//        for (puzzle, word, too_many, too_few) in non_matching_tests
-//            @fact non_match(puzzle, word) --> (too_many, too_few)
-//        end
-//    end
-//
+    #[test]
+    fn get_puzzle_test() {
+        let chan = "channel".to_string();
+        let mut state = Niancat::new();
+        let puzzle = Puzzle("ABCDEFGHI".to_string());
+        state.puzzle = Some(puzzle.clone());
+        let command = GetCommand { channel: &chan };
+        let expected = Response::GetCommand(chan.clone(), puzzle.clone());
+
+        let actual = command.apply(&mut state);
+        assert!(actual == expected);
+    }
+
 //    context("Get puzzle") do
 //        words = FakeWordDictionary(true, 1)
 //        command = GetPuzzleCommand(channel_id0, user_id0)

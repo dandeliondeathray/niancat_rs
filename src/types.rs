@@ -1,6 +1,8 @@
-#[derive(Eq, PartialEq, Hash, Debug)]
+use std::fmt;
+
+#[derive(Eq, PartialEq, Hash, Clone, Debug)]
 pub struct Puzzle(pub String);
-#[derive(Hash, Eq, PartialEq, Debug)]
+#[derive(Hash, Eq, PartialEq, Clone, Debug)]
 pub struct Word(pub String);
 
 use regex::Regex;
@@ -14,6 +16,12 @@ impl Word {
 
         let &Word(ref w) = self;
         Word(RE.replace_all(w.as_str(), "").to_uppercase())
+    }
+}
+
+impl fmt::Display for Puzzle {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.0)
     }
 }
 
