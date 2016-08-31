@@ -4,6 +4,9 @@ use std::fmt;
 pub struct Puzzle(pub String);
 #[derive(Hash, Eq, PartialEq, Clone, Debug)]
 pub struct Word(pub String);
+#[derive(Hash, Eq, PartialEq, Clone, Debug)]
+pub struct Name(pub String);
+
 
 use regex::Regex;
 

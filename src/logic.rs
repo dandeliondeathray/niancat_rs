@@ -8,6 +8,16 @@ use types::*;
 use dictionary::*;
 
 pub type Channel = String;
+pub type WordHash = String;
+pub type TooMany = String;
+pub type TooFew = String;
+
+#[derive(Eq, PartialEq)]
+pub enum Reason {
+    NotInDictionary,
+    NotNineCharacters,
+    NonMatchingWord(TooMany, TooFew),
+}
 
 #[derive(Eq, PartialEq)]
 pub enum Response {
@@ -15,6 +25,11 @@ pub enum Response {
     NoPuzzleSet(Channel),
     SetPuzzle(Channel, Puzzle),
     InvalidPuzzle(Channel, Puzzle),
+    CorrectSolution(Channel, Word),
+    Notification(Name, WordHash),
+    IncorrectSolution(Channel, Word, Reason),
+    DualResponse(Box<Response>, Box<Response>),
+    TripleResponse(Box<Response>, Box<Response>, Box<Response>),
 }
 
 pub trait Command {
@@ -62,6 +77,18 @@ impl<'a> Command for SetPuzzleCommand<'a> {
         } else {
             Response::InvalidPuzzle(self.channel.clone(), self.puzzle.clone())
         }
+    }
+}
+
+pub struct CheckSolutionCommand<'a> {
+    channel: &'a String,
+    name: Name,
+    word: Word,
+}
+
+impl<'a> Command for CheckSolutionCommand<'a> {
+    fn apply(&self, state: &mut Niancat) -> Response {
+        Response::NoPuzzleSet(self.channel.clone())
     }
 }
 
@@ -159,6 +186,12 @@ mod tests {
         find_solutions_v: None,
         has_solution_v: true };
 
+    static NOT_SOLUTION_CHECKWORD: FakeCheckWord = FakeCheckWord {
+        is_solution_v: false,
+        no_of_solutions_v: 0,
+        find_solutions_v: None,
+        has_solution_v: true };
+
     #[test]
     fn solution_hash_test() {
         for &(word, nick, expected) in HASH_TESTS {
@@ -215,12 +248,10 @@ mod tests {
     }
 
     #[test]
-    fn set_invalid_puzzle() {
+    fn set_invalid_puzzle_test() {
         let channel = "channel".to_string();
         let p = Puzzle("ABCDEF".to_string());
-        let mut checkword = DEFAULT_CHECKWORD.clone();
-        checkword.has_solution_v = false;
-        let mut state = Niancat::new(&checkword);
+        let mut state = Niancat::new(&NOT_SOLUTION_CHECKWORD);
         let set_command = SetPuzzleCommand { channel: &channel, puzzle: p.clone() };
         let response = set_command.apply(&mut state);
 
@@ -228,15 +259,107 @@ mod tests {
         assert!(state.puzzle == None);
     }
 
-//    context("Set invalid puzzle") do
-//        words = FakeWordDictionary(true, 0)
-//        logic = Logic(Nullable{Puzzle}(puzzle1), words, fake_members, Unsolutions(), 1)
-//        get_command = GetPuzzleCommand(channel_id0, user_id0)
-//        set_command = SetPuzzleCommand(channel_id0, user_id0, puzzle0)
-//        @fact handle(logic, set_command) --> InvalidPuzzleResponse(channel_id0, puzzle0)
-//        @fact handle(logic, get_command) --> GetPuzzleResponse(channel_id0, puzzle1, 1)
-//    end
-//
+    #[test]
+    fn solve_puzzle_test() {
+        let channel = "channel".to_string();
+        let name = Name("erike".to_string());
+        let word = Word("GALLTJUTA".to_string());
+
+        let mut state = Niancat::new(&DEFAULT_CHECKWORD);
+
+        let command = CheckSolutionCommand {
+            channel: &channel,
+            name: name.clone(),
+            word: word.clone(),
+        };
+        let expected_hash = "d8e7363cdad6303dd4c41cb2ad3e2c35759257ca8ac509107e4e9e9ff5741933".to_string();
+        let expected_solution_response = Response::CorrectSolution(channel.clone(), word.clone());
+        let expected_notification_response = Response::Notification(name.clone(), expected_hash);
+
+        let response = command.apply(&mut state);
+        match response {
+            Response::DualResponse(solution_response, notification_response) => {
+                assert!(*solution_response == expected_solution_response);
+                assert!(*notification_response == expected_notification_response);
+            },
+            _ => assert!(false)
+        }
+    }
+
+    #[test]
+    fn incorrect_word_not_in_dict() {
+        let channel = "channel".to_string();
+        let name = Name("erike".to_string());
+        let word = Word("NOTINDICT".to_string());
+
+        let mut state = Niancat::new(&NOT_SOLUTION_CHECKWORD);
+        state.puzzle = Some(Puzzle("ABCDEFGHI".to_string()));
+
+        let command = CheckSolutionCommand {
+            channel: &channel,
+            name: name.clone(),
+            word: word.clone(),
+        };
+        let response = command.apply(&mut state);
+        assert!(response == Response::IncorrectSolution(channel.clone(), word.clone(), Reason::NotInDictionary));
+    }
+
+    #[test]
+    fn incorrect_word_not_nine() {
+        let channel = "channel".to_string();
+        let name = Name("erike".to_string());
+        let word = Word("NOTNINE".to_string());
+
+        let mut state = Niancat::new(&NOT_SOLUTION_CHECKWORD);
+        state.puzzle = Some(Puzzle("ABCDEFGHI".to_string()));
+
+        let command = CheckSolutionCommand {
+            channel: &channel,
+            name: name.clone(),
+            word: word.clone(),
+        };
+        let response = command.apply(&mut state);
+        assert!(response == Response::IncorrectSolution(channel.clone(),
+                                                        word.clone(),
+                                                        Reason::NotNineCharacters));
+    }
+
+    #[test]
+    fn incorrect_word_no_puzzle_set() {
+        let channel = "channel".to_string();
+        let name = Name("erike".to_string());
+        let word = Word("ABCDEFGHI".to_string());
+
+        let mut state = Niancat::new(&NOT_SOLUTION_CHECKWORD);
+
+        let command = CheckSolutionCommand {
+            channel: &channel,
+            name: name.clone(),
+            word: word.clone(),
+        };
+        let response = command.apply(&mut state);
+        assert!(response == Response::NoPuzzleSet(channel.clone()));
+    }
+
+    #[test]
+    fn incorrect_word_non_matching() {
+        let channel = "channel".to_string();
+        let name = Name("erike".to_string());
+        let word = Word("GALLTJUTA".to_string());
+
+        let mut state = Niancat::new(&NOT_SOLUTION_CHECKWORD);
+        state.puzzle = Some(Puzzle("ABCDEFGHI".to_string()));
+
+        let command = CheckSolutionCommand {
+            channel: &channel,
+            name: name.clone(),
+            word: word.clone(),
+        };
+        let response = command.apply(&mut state);
+        let reason = Reason::NonMatchingWord("AJLLTTU".to_string(), "BCDEFHI".to_string());
+        assert!(response == Response::IncorrectSolution(channel.clone(), word.clone(), reason));
+    }
+
 //    context("Set puzzle, multiple solutions") do
 //        solutions = 17
 //        words = FakeWordDictionary(true, solutions)
@@ -246,69 +369,6 @@ mod tests {
 //
 //        @fact handle(logic, set_command) --> SetPuzzleResponse(channel_id0, puzzle0, solutions)
 //        @fact handle(logic, get_command) --> GetPuzzleResponse(channel_id0, puzzle0, solutions)
-//    end
-//
-//    context("Solve the puzzle") do
-//        name = utf8("erike")
-//        member_scroll = FakeMemberScroll(user_id0, name)
-//        words = FakeWordDictionary(true, 1)
-//        word = Word("GALL-TJU TA")
-//        logic = Logic(words, member_scroll)
-//        logic.puzzle = Nullable{Puzzle}(Puzzle("AGALLTJUT"))
-//        expected_hash = utf8("d8e7363cdad6303dd4c41cb2ad3e2c35759257ca8ac509107e4e9e9ff5741933")
-//        command = CheckSolutionCommand(channel_id0, user_id0, word)
-//
-//        response = handle(logic, command)
-//        @fact isa(response, CompositeResponse) --> true
-//
-//        solution_response, notification_response = response
-//
-//        @fact solution_response --> CorrectSolutionResponse(channel_id0, normalize(word))
-//        @fact notification_response --> SolutionNotificationResponse(SlackName(name), expected_hash)
-//    end
-//
-//    context("Incorrect solution, because it's not in the dictionary") do
-//        member_scroll = FakeMemberScroll()
-//        words = FakeWordDictionary(false, 1)
-//        logic = Logic(words, member_scroll)
-//        logic.puzzle = Nullable{Puzzle}(Puzzle("AGALLTJUT"))
-//        word = Word("GALLTJUTA")
-//        command = CheckSolutionCommand(channel_id0, user_id0, word)
-//        @fact handle(logic, command) -->
-//            IncorrectSolutionResponse(channel_id0, word, :not_in_dictionary)
-//    end
-//
-//    context("Incorrect solution, because it's not not nine characters") do
-//        member_scroll = FakeMemberScroll()
-//        words = FakeWordDictionary(false, 1)
-//        logic = Logic(words, member_scroll)
-//        logic.puzzle = Nullable{Puzzle}(Puzzle("GALLTJUTA"))
-//        word = Word("GALLA")
-//        command = CheckSolutionCommand(channel_id0, user_id0, word)
-//        @fact handle(logic, command) -->
-//            IncorrectSolutionResponse(channel_id0, word, :not_nine_characters)
-//    end
-//
-//    context("Incorrect solution, because it doesn't match the puzzle") do
-//        member_scroll = FakeMemberScroll()
-//        words = FakeWordDictionary(false, 1)
-//        logic = Logic(words, member_scroll)
-//        puzzle = Puzzle("ABCDEFGHI")
-//        logic.puzzle = Nullable{Puzzle}(puzzle)
-//        word = Word("GALLTJUTA")
-//        command = CheckSolutionCommand(channel_id0, user_id0, word)
-//        @fact handle(logic, command) -->
-//            NonMatchingWordResponse(channel_id0, word, puzzle,
-//                utf8("AJLLTTU"), utf8("BCDEFHI"))
-//    end
-//
-//    context("Incorrect solution, because the puzzle isn't set") do
-//        member_scroll = FakeMemberScroll()
-//        words = FakeWordDictionary(false, 1)
-//        logic = Logic(words, member_scroll)
-//        word = Word("GALLTJUTA")
-//        command = CheckSolutionCommand(channel_id0, user_id0, word)
-//        @fact handle(logic, command) --> NoPuzzleSetResponse(channel_id0)
 //    end
 //
 //    context("Unknown user") do
