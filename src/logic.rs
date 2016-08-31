@@ -24,7 +24,7 @@ pub enum Response {
     GetCommand(Channel, Puzzle),
     NoPuzzleSet(Channel),
     SetPuzzle(Channel, Puzzle),
-    InvalidPuzzle(Channel, Puzzle),
+    InvalidPuzzle(Channel, Puzzle, Reason),
     CorrectSolution(Channel, Word),
     Notification(Name, WordHash),
     IncorrectSolution(Channel, Word, Reason),
@@ -75,7 +75,7 @@ impl<'a> Command for SetPuzzleCommand<'a> {
             state.puzzle = Some(self.puzzle.clone());
             Response::SetPuzzle(self.channel.clone(), self.puzzle.clone())
         } else {
-            Response::InvalidPuzzle(self.channel.clone(), self.puzzle.clone())
+            Response::InvalidPuzzle(self.channel.clone(), self.puzzle.clone(), Reason::NotInDictionary)
         }
     }
 }
@@ -88,11 +88,35 @@ pub struct CheckSolutionCommand<'a> {
 
 impl<'a> Command for CheckSolutionCommand<'a> {
     fn apply(&self, state: &mut Niancat) -> Response {
-        Response::NoPuzzleSet(self.channel.clone())
+        if let Some(ref puzzle) = state.puzzle {
+            if !is_right_length(&self.word) {
+                return Response::IncorrectSolution(self.channel.clone(), self.word.clone(),
+                    Reason::NotNineCharacters);
+            }
+
+            if let Some((too_few, too_many)) = non_match(&puzzle, &self.word) {
+                let reason = Reason::NonMatchingWord(too_many, too_few);
+                return Response::IncorrectSolution(self.channel.clone(), self.word.clone(),
+                    reason)
+            }
+
+            if state.dictionary.is_solution(&self.word) {
+                let hash = solution_hash(&self.word.normalize(), &self.name);
+                let correct_solution = Response::CorrectSolution(self.channel.clone(),
+                    self.word.clone());
+                let notification = Response::Notification(self.name.clone(), hash);
+                return Response::DualResponse(Box::new(correct_solution), Box::new(notification));
+            } else {
+                return Response::IncorrectSolution(self.channel.clone(), self.word.clone(),
+                    Reason::NotInDictionary);
+            }
+        } else {
+            Response::NoPuzzleSet(self.channel.clone())
+        }
     }
 }
 
-pub fn solution_hash(&Word(ref s): &Word, nick: &String) -> String {
+pub fn solution_hash(&Word(ref s): &Word, &Name(ref nick): &Name) -> String {
     let mut hasher = Sha256::new();
     hasher.input_str(s.as_str());
     hasher.input_str(nick.as_str());
@@ -108,7 +132,11 @@ pub fn string_to_dict(s: &String) -> HashMap<char, u32> {
     h
 }
 
-pub fn non_match(&Puzzle(ref puzzle): &Puzzle, &Word(ref word): &Word) -> (String, String) {
+fn is_right_length(&Word(ref w): &Word) -> bool {
+    return w.chars().collect::<Vec<char>>().len() == 9
+}
+
+pub fn non_match(&Puzzle(ref puzzle): &Puzzle, &Word(ref word): &Word) -> Option<(String, String)> {
     let mut too_many = String::new();
     let mut too_few = String::new();
 
@@ -130,12 +158,17 @@ pub fn non_match(&Puzzle(ref puzzle): &Puzzle, &Word(ref word): &Word) -> (Strin
             too_few.push_str(&char_string);
         }
     }
-    let mut tm: Vec<char> = too_many.chars().collect();
-    let mut tf: Vec<char> = too_few.chars().collect();
-    tm.sort();
-    tf.sort();
 
-    (tf.into_iter().collect(), tm.into_iter().collect())
+    if too_many.is_empty() && too_few.is_empty() {
+        None
+    } else {
+        let mut tm: Vec<char> = too_many.chars().collect();
+        let mut tf: Vec<char> = too_few.chars().collect();
+        tm.sort();
+        tf.sort();
+
+        Some((tf.into_iter().collect(), tm.into_iter().collect()))
+    }
 }
 
 #[cfg(test)]
@@ -165,6 +198,13 @@ mod tests {
         ("ABCDEFÅÄÖ", "ABCDEFÅÄÄ", "Ä", "Ö")
     ];
 
+    const MATCHING_TESTS: &'static [(&'static str, &'static str)] = &[
+        ("GALLTJUTA", "GALLTJUTA"),
+        ("GALLTJUTA", "AGALLTJUT"),
+        ("GALLTJUTA", "GLLUTATJA"),
+        ("ABCDEFÅÄÖ", "ÅÄÖABCDEF")
+    ];
+
     #[derive(Clone)]
     struct FakeCheckWord {
         is_solution_v: bool,
@@ -190,12 +230,12 @@ mod tests {
         is_solution_v: false,
         no_of_solutions_v: 0,
         find_solutions_v: None,
-        has_solution_v: true };
+        has_solution_v: false };
 
     #[test]
     fn solution_hash_test() {
         for &(word, nick, expected) in HASH_TESTS {
-            let actual = solution_hash(&Word(word.to_string()), &nick.to_string());
+            let actual = solution_hash(&Word(word.to_string()), &Name(nick.to_string()));
             assert!(actual == expected, "Actual hash: {}, expected {}", actual, expected);
         }
     }
@@ -203,10 +243,22 @@ mod tests {
     #[test]
     fn non_match_test() {
         for &(puzzle, word, too_many, too_few) in NON_MATCHING_TESTS {
-            let (actual_too_few, actual_too_many) =
+            let actual =
                 non_match(&Puzzle(puzzle.to_string()), &Word(word.to_string()));
-            assert!(too_few.to_string() == actual_too_few, "Too few, expected: {:?}, actual {:?}, puzzle {:?}, word {:?}", too_few, actual_too_few, puzzle, word);
-            assert!(too_many.to_string() == actual_too_many, "Too many: expected {:?}, actual {:?}, puzzle {:?}, word {:?}", too_many, actual_too_many, puzzle, word);
+            if let Some((actual_too_few, actual_too_many)) = actual {
+                assert!(too_few.to_string() == actual_too_few, "Too few, expected: {:?}, actual {:?}, puzzle {:?}, word {:?}", too_few, actual_too_few, puzzle, word);
+                assert!(too_many.to_string() == actual_too_many, "Too many: expected {:?}, actual {:?}, puzzle {:?}, word {:?}", too_many, actual_too_many, puzzle, word);
+            } else {
+                assert!(false, "Expected non-matching {:?}, but got match, puzzle {:?}, word {:?}", (too_few, too_many), puzzle, word);
+            }
+        }
+    }
+
+    #[test]
+    fn match_test() {
+        for &(puzzle, word) in MATCHING_TESTS {
+            let actual = non_match(&Puzzle(puzzle.to_string()), &Word(word.to_string()));
+            assert!(None == actual, "Expected match, expected: None, actual {:?}, puzzle {:?}, word {:?}", actual, puzzle, word);
         }
     }
 
@@ -255,7 +307,14 @@ mod tests {
         let set_command = SetPuzzleCommand { channel: &channel, puzzle: p.clone() };
         let response = set_command.apply(&mut state);
 
-        assert!(response == Response::InvalidPuzzle(channel.clone(), p.clone()));
+        assert!(response == Response::InvalidPuzzle(channel.clone(), p.clone(), Reason::NotNineCharacters));
+        assert!(state.puzzle == None);
+
+        let p = Puzzle("IHGFEDCBA".into());
+        let set_command = SetPuzzleCommand { channel: &channel, puzzle: p.clone() };
+        let response = set_command.apply(&mut state);
+
+        assert!(response == Response::InvalidPuzzle(channel.clone(), p.clone(), Reason::NotInDictionary));
         assert!(state.puzzle == None);
     }
 
@@ -290,7 +349,7 @@ mod tests {
     fn incorrect_word_not_in_dict() {
         let channel = "channel".to_string();
         let name = Name("erike".to_string());
-        let word = Word("NOTINDICT".to_string());
+        let word = Word("IHGFEDCBA".to_string());
 
         let mut state = Niancat::new(&NOT_SOLUTION_CHECKWORD);
         state.puzzle = Some(Puzzle("ABCDEFGHI".to_string()));
