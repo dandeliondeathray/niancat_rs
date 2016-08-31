@@ -5,6 +5,7 @@ use std::iter::{FromIterator, repeat};
 use multimap::MultiMap;
 
 use types::*;
+use dictionary::*;
 
 pub type Channel = String;
 
@@ -12,20 +13,26 @@ pub type Channel = String;
 pub enum Response {
     GetCommand(Channel, Puzzle),
     NoPuzzleSet(Channel),
+    SetPuzzle(Channel, Puzzle),
+    InvalidPuzzle(Channel, Puzzle),
 }
 
 pub trait Command {
     fn apply(&self, state: &mut Niancat) -> Response;
 }
 
-pub struct Niancat {
+pub struct Niancat<'a> {
     puzzle: Option<Puzzle>,
     solutions: MultiMap<Word, String>,
+    dictionary: &'a CheckWord,
 }
 
-impl Niancat {
-    pub fn new() -> Niancat {
-        Niancat { puzzle: None, solutions: MultiMap::new() }
+impl<'a> Niancat<'a> {
+    pub fn new<T: CheckWord>(dictionary: &'a T) -> Niancat<'a> {
+        Niancat { puzzle: None,
+                  solutions: MultiMap::new(),
+                  dictionary: dictionary,
+                }
     }
 }
 
@@ -38,6 +45,22 @@ impl<'a> Command for GetCommand<'a> {
         match state.puzzle {
             Some(ref puzzle) => Response::GetCommand(self.channel.clone(), puzzle.clone()),
             None => Response::NoPuzzleSet(self.channel.clone())
+        }
+    }
+}
+
+pub struct SetPuzzleCommand<'a> {
+    channel: &'a String,
+    puzzle: Puzzle,
+}
+
+impl<'a> Command for SetPuzzleCommand<'a> {
+    fn apply(&self, state: &mut Niancat) -> Response {
+        if state.dictionary.has_solution(&self.puzzle) {
+            state.puzzle = Some(self.puzzle.clone());
+            Response::SetPuzzle(self.channel.clone(), self.puzzle.clone())
+        } else {
+            Response::InvalidPuzzle(self.channel.clone(), self.puzzle.clone())
         }
     }
 }
@@ -92,6 +115,7 @@ pub fn non_match(&Puzzle(ref puzzle): &Puzzle, &Word(ref word): &Word) -> (Strin
 mod tests {
     use super::*;
     use types::*;
+    use dictionary::*;
 
     const HASH_TESTS: &'static [(&'static str, &'static str, &'static str)] = &[
         ("GALLTJUTA", "f00ale",   "f72e9a9523bbc72bf7366a58a04046408d2d88ea811afdc9a459d24e077fa71d"),
@@ -114,6 +138,27 @@ mod tests {
         ("ABCDEFÅÄÖ", "ABCDEFÅÄÄ", "Ä", "Ö")
     ];
 
+    #[derive(Clone)]
+    struct FakeCheckWord {
+        is_solution_v: bool,
+        no_of_solutions_v: usize,
+        find_solutions_v: Option<Vec<Word>>,
+        has_solution_v: bool,
+    }
+
+    impl CheckWord for FakeCheckWord {
+        fn is_solution(&self, _: &Word) -> bool { self.is_solution_v }
+        fn no_of_solutions(&self, _: &Puzzle) -> usize { self.no_of_solutions_v }
+        fn find_solutions(&self, _: &Puzzle) -> Option<Vec<Word>> { self.find_solutions_v.clone() }
+        fn has_solution(&self, _: &Puzzle) -> bool { self.has_solution_v }
+    }
+
+    static DEFAULT_CHECKWORD: FakeCheckWord = FakeCheckWord {
+        is_solution_v: true,
+        no_of_solutions_v: 1,
+        find_solutions_v: None,
+        has_solution_v: true };
+
     #[test]
     fn solution_hash_test() {
         for &(word, nick, expected) in HASH_TESTS {
@@ -135,7 +180,7 @@ mod tests {
     #[test]
     fn get_puzzle_test() {
         let chan = "channel".to_string();
-        let mut state = Niancat::new();
+        let mut state = Niancat::new(&DEFAULT_CHECKWORD);
         let puzzle = Puzzle("ABCDEFGHI".to_string());
         state.puzzle = Some(puzzle.clone());
         let command = GetCommand { channel: &chan };
@@ -148,7 +193,7 @@ mod tests {
     #[test]
     fn no_puzzle_set_test() {
         let chan = "channel".to_string();
-        let mut state = Niancat::new();
+        let mut state = Niancat::new(&DEFAULT_CHECKWORD);
         let command = GetCommand { channel: &chan };
         let expected = Response::NoPuzzleSet(chan.clone());
         let actual = command.apply(&mut state);
@@ -157,18 +202,32 @@ mod tests {
     }
 
 
-//    context("Set puzzle") do
-//        words = FakeWordDictionary(true, 1)
-//        logic = Logic(words, fake_members)
-//        get_command = GetPuzzleCommand(channel_id0, user_id0)
-//        set_command = SetPuzzleCommand(channel_id0, user_id0, "ABCDEFGHI"))
-//
-//        expected = SetPuzzleResponse(channel_id0, puzzle0, 1)
-//
-//        @fact handle(logic, set_command) --> expected
-//        @fact handle(logic, get_command) --> GetPuzzleResponse(channel_id0, puzzle0, 1)
-//    end
-//
+    #[test]
+    fn set_puzzle_test() {
+        let channel = "channel".to_string();
+        let p = Puzzle("ABCDEFGHI".to_string());
+        let mut state = Niancat::new(&DEFAULT_CHECKWORD);
+        let set_command = SetPuzzleCommand { channel: &channel, puzzle: p.clone() };
+        let response = set_command.apply(&mut state);
+
+        assert!(response == Response::SetPuzzle(channel.clone(), p.clone()));
+        assert!(state.puzzle == Some(p));
+    }
+
+    #[test]
+    fn set_invalid_puzzle() {
+        let channel = "channel".to_string();
+        let p = Puzzle("ABCDEF".to_string());
+        let mut checkword = DEFAULT_CHECKWORD.clone();
+        checkword.has_solution_v = false;
+        let mut state = Niancat::new(&checkword);
+        let set_command = SetPuzzleCommand { channel: &channel, puzzle: p.clone() };
+        let response = set_command.apply(&mut state);
+
+        assert!(response == Response::InvalidPuzzle(channel.clone(), p.clone()));
+        assert!(state.puzzle == None);
+    }
+
 //    context("Set invalid puzzle") do
 //        words = FakeWordDictionary(true, 0)
 //        logic = Logic(Nullable{Puzzle}(puzzle1), words, fake_members, Unsolutions(), 1)
