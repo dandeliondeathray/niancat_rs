@@ -7,35 +7,6 @@ use multimap::MultiMap;
 use types::*;
 use dictionary::*;
 
-pub type Channel = String;
-pub type WordHash = String;
-pub type TooMany = String;
-pub type TooFew = String;
-
-#[derive(Eq, PartialEq, Debug)]
-pub enum Reason {
-    NotInDictionary,
-    NotNineCharacters,
-    NonMatchingWord(TooMany, TooFew),
-}
-
-#[derive(Eq, PartialEq, Debug)]
-pub enum Response {
-    GetCommand(Channel, Puzzle),
-    NoPuzzleSet(Channel),
-    SetPuzzle(Channel, Puzzle),
-    InvalidPuzzle(Channel, Puzzle, Reason),
-    CorrectSolution(Channel, Word),
-    Notification(Name, WordHash),
-    IncorrectSolution(Channel, Word, Reason),
-    DualResponse(Box<Response>, Box<Response>),
-    TripleResponse(Box<Response>, Box<Response>, Box<Response>),
-}
-
-pub trait Command {
-    fn apply(&self, state: &mut Niancat) -> Response;
-}
-
 pub struct Niancat<'a> {
     puzzle: Option<Puzzle>,
     solutions: MultiMap<Word, String>,
@@ -51,8 +22,12 @@ impl<'a> Niancat<'a> {
     }
 }
 
+pub trait Command {
+    fn apply(&self, state: &mut Niancat) -> Response;
+}
+
 pub struct GetCommand<'a> {
-    channel: &'a String
+    channel: &'a Channel
 }
 
 impl<'a> Command for GetCommand<'a> {
@@ -64,8 +39,14 @@ impl<'a> Command for GetCommand<'a> {
     }
 }
 
+impl<'a> GetCommand<'a> {
+    pub fn new(channel: &'a Channel) -> GetCommand<'a> {
+        GetCommand { channel: &channel }
+    }
+}
+
 pub struct SetPuzzleCommand<'a> {
-    channel: &'a String,
+    channel: &'a Channel,
     puzzle: Puzzle,
 }
 
@@ -83,8 +64,14 @@ impl<'a> Command for SetPuzzleCommand<'a> {
     }
 }
 
+impl<'a> SetPuzzleCommand<'a> {
+    pub fn new(channel: &'a Channel, puzzle: Puzzle) -> SetPuzzleCommand<'a> {
+        SetPuzzleCommand { channel: &channel, puzzle: puzzle }
+    }
+}
+
 pub struct CheckSolutionCommand<'a> {
-    channel: &'a String,
+    channel: &'a Channel,
     name: Name,
     word: Word,
 }
@@ -116,6 +103,12 @@ impl<'a> Command for CheckSolutionCommand<'a> {
         } else {
             Response::NoPuzzleSet(self.channel.clone())
         }
+    }
+}
+
+impl<'a> CheckSolutionCommand<'a> {
+    pub fn new(channel: &'a Channel, name: Name, word: Word) -> CheckSolutionCommand {
+        CheckSolutionCommand { channel: &channel, name: name, word: word }
     }
 }
 
@@ -267,7 +260,7 @@ mod tests {
 
     #[test]
     fn get_puzzle_test() {
-        let chan = "channel".to_string();
+        let chan = Channel("channel".into());
         let mut state = Niancat::new(&DEFAULT_CHECKWORD);
         let puzzle = Puzzle("ABCDEFGHI".to_string());
         state.puzzle = Some(puzzle.clone());
@@ -280,7 +273,7 @@ mod tests {
 
     #[test]
     fn no_puzzle_set_test() {
-        let chan = "channel".to_string();
+        let chan = Channel("channel".into());
         let mut state = Niancat::new(&DEFAULT_CHECKWORD);
         let command = GetCommand { channel: &chan };
         let expected = Response::NoPuzzleSet(chan.clone());
@@ -292,7 +285,7 @@ mod tests {
 
     #[test]
     fn set_puzzle_test() {
-        let channel = "channel".to_string();
+        let channel = Channel("channel".into());
         let p = Puzzle("ABCDEFGHI".to_string());
         let mut state = Niancat::new(&DEFAULT_CHECKWORD);
         let set_command = SetPuzzleCommand { channel: &channel, puzzle: p.clone() };
@@ -304,7 +297,7 @@ mod tests {
 
     #[test]
     fn set_invalid_puzzle_test() {
-        let channel = "channel".to_string();
+        let channel = Channel("channel".into());
         let p = Puzzle("ABCDEF".to_string());
         let mut state = Niancat::new(&NOT_SOLUTION_CHECKWORD);
         let set_command = SetPuzzleCommand { channel: &channel, puzzle: p.clone() };
@@ -323,7 +316,7 @@ mod tests {
 
     #[test]
     fn solve_puzzle_test() {
-        let channel = "channel".to_string();
+        let channel = Channel("channel".into());
         let name = Name("erike".to_string());
         let word = Word("GALLTJUTA".to_string());
 
@@ -351,7 +344,7 @@ mod tests {
 
     #[test]
     fn incorrect_word_not_in_dict() {
-        let channel = "channel".to_string();
+        let channel = Channel("channel".into());
         let name = Name("erike".to_string());
         let word = Word("IHGFEDCBA".to_string());
 
@@ -369,7 +362,7 @@ mod tests {
 
     #[test]
     fn incorrect_word_not_nine() {
-        let channel = "channel".to_string();
+        let channel = Channel("channel".into());
         let name = Name("erike".to_string());
         let word = Word("NOTNINE".to_string());
 
@@ -389,7 +382,7 @@ mod tests {
 
     #[test]
     fn incorrect_word_no_puzzle_set() {
-        let channel = "channel".to_string();
+        let channel = Channel("channel".into());
         let name = Name("erike".to_string());
         let word = Word("ABCDEFGHI".to_string());
 
@@ -406,7 +399,7 @@ mod tests {
 
     #[test]
     fn incorrect_word_non_matching() {
-        let channel = "channel".to_string();
+        let channel = Channel("channel".into());
         let name = Name("erike".to_string());
         let word = Word("GALLTJUTA".to_string());
 

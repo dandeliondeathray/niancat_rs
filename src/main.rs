@@ -7,6 +7,7 @@ extern crate crypto;
 mod types;
 mod dictionary;
 mod logic;
+mod parser;
 
 struct NiancatHandler;
 

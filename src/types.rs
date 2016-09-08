@@ -1,12 +1,23 @@
 use std::fmt;
 
+//
+// New types instead of just strings.
+//
+
 #[derive(Eq, PartialEq, Hash, Clone, Debug)]
 pub struct Puzzle(pub String);
 #[derive(Hash, Eq, PartialEq, Clone, Debug)]
 pub struct Word(pub String);
 #[derive(Hash, Eq, PartialEq, Clone, Debug)]
 pub struct Name(pub String);
+#[derive(Hash, Eq, PartialEq, Clone, Debug)]
+pub struct User(pub String);
+#[derive(Hash, Eq, PartialEq, Clone, Debug)]
+pub struct Channel(pub String);
 
+pub type WordHash = String;
+pub type TooMany = String;
+pub type TooFew = String;
 
 use regex::Regex;
 
@@ -27,6 +38,30 @@ impl fmt::Display for Puzzle {
         write!(f, "{}", self.0)
     }
 }
+
+
+
+#[derive(Eq, PartialEq, Debug)]
+pub enum Reason {
+    NotInDictionary,
+    NotNineCharacters,
+    NonMatchingWord(TooMany, TooFew),
+}
+
+#[derive(Eq, PartialEq, Debug)]
+pub enum Response {
+    GetCommand(Channel, Puzzle),
+    NoPuzzleSet(Channel),
+    SetPuzzle(Channel, Puzzle),
+    InvalidPuzzle(Channel, Puzzle, Reason),
+    CorrectSolution(Channel, Word),
+    Notification(Name, WordHash),
+    IncorrectSolution(Channel, Word, Reason),
+    DualResponse(Box<Response>, Box<Response>),
+    TripleResponse(Box<Response>, Box<Response>, Box<Response>),
+}
+
+
 
 #[cfg(test)]
 mod tests {
