@@ -238,6 +238,42 @@ mod tests {
         }
     }
 
+    #[test]
+    fn set_puzzle_test() {
+        let channel = Channel("channel".into());
+        let p = Puzzle("ABCDEFGHI".into());
+        let mut state = Niancat::new(&DEFAULT_CHECKWORD);
+        let set_command = Command::SetPuzzle(channel.clone(), p.clone());
+        let response = apply(&set_command, &mut state);
+
+        assert!(response == Response::SetPuzzle(channel.clone(), p.clone()));
+        assert!(state.puzzle == Some(p));
+    }
+
+
+    #[test]
+    fn set_invalid_puzzle_test() {
+        let channel = Channel("channel".into());
+        let p = Puzzle("ABCDEF".to_string());
+        let mut state = Niancat::new(&NOT_SOLUTION_CHECKWORD);
+        let set_command = Command::SetPuzzle(channel.clone(), p.clone());
+        let response = apply(&set_command, &mut state);
+
+        assert!(response == Response::InvalidPuzzle(channel.clone(), p.clone(), Reason::NotNineCharacters), "Actual response: {:?}", response);
+        assert!(state.puzzle == None);
+
+        let p = Puzzle("IHGFEDCBA".into());
+        let set_command = Command::SetPuzzle(channel.clone(), p.clone());
+        let response = apply(&set_command, &mut state);
+
+        assert!(response == Response::InvalidPuzzle(channel.clone(), p.clone(), Reason::NotInDictionary));
+        assert!(state.puzzle == None);
+    }
+
+    //
+    // This is a simplified list of tests where we only test the response, not the new state.
+    //
+
     struct CommandTest<'a> {
         description: &'static str,
         state: Niancat<'a>,
@@ -248,6 +284,12 @@ mod tests {
     #[test]
     fn commands_test() {
         let chan = Channel("channel".into());
+        let name1 = Name("erike".to_string());
+        let word1 = Word("IHGFEDCBA".to_string());
+        let word2 = Word("GALLTJUTA".into());
+
+        // This is the expected hash for word2 and name1.
+        let expected_hash = "d8e7363cdad6303dd4c41cb2ad3e2c35759257ca8ac509107e4e9e9ff5741933".to_string();
 
         let puzzle1 = Puzzle("ABCDEFGHI".to_string());
 
@@ -257,7 +299,52 @@ mod tests {
                 state: Niancat::new_with_puzzle(&DEFAULT_CHECKWORD, puzzle1.clone()),
                 command: Command::GetPuzzle(chan.clone()),
                 expected: Response::GetCommand(chan.clone(), puzzle1.clone())
-            }
+            },
+
+            CommandTest {
+                description: "No puzzle set",
+                state: Niancat::new(&DEFAULT_CHECKWORD),
+                command: Command::GetPuzzle(chan.clone()),
+                expected: Response::NoPuzzleSet(chan.clone())
+            },
+
+            CommandTest {
+                description: "Word is not in dictionary",
+                state: Niancat::new_with_puzzle(&NOT_SOLUTION_CHECKWORD, Puzzle("ABCDEFGHI".into())),
+                command: Command::CheckSolution(chan.clone(), name1.clone(), word1.clone()),
+                expected: Response::IncorrectSolution(chan.clone(), word1.clone(), Reason::NotInDictionary)
+            },
+
+            CommandTest {
+                description: "Word is the wrong length",
+                state: Niancat::new_with_puzzle(&NOT_SOLUTION_CHECKWORD, Puzzle("ABCDEFGHI".into())),
+                command: Command::CheckSolution(chan.clone(), name1.clone(), Word("NOTNINE".into())),
+                expected: Response::IncorrectSolution(chan.clone(), Word("NOTNINE".into()), Reason::NotNineCharacters)
+            },
+
+            CommandTest {
+                description: "Incorrect word, but no puzzle set",
+                state: Niancat::new(&NOT_SOLUTION_CHECKWORD),
+                command: Command::CheckSolution(chan.clone(), name1.clone(), word1.clone()),
+                expected: Response::NoPuzzleSet(chan.clone())
+            },
+
+            CommandTest {
+                description: "Incorrect word, doesn't match puzzle",
+                state: Niancat::new_with_puzzle(&NOT_SOLUTION_CHECKWORD, Puzzle("ABCDEFGHI".into())),
+                command: Command::CheckSolution(chan.clone(), name1.clone(), word2.clone()),
+                expected: Response::IncorrectSolution(chan.clone(), word2.clone(),
+                    Reason::NonMatchingWord("AJLLTTU".to_string(), "BCDEFHI".to_string()))
+            },
+
+            CommandTest {
+                description: "Solving the puzzle",
+                state: Niancat::new_with_puzzle(&DEFAULT_CHECKWORD, Puzzle("AGALLTJUT".into())),
+                command: Command::CheckSolution(chan.clone(), name1.clone(), word2.clone()),
+                expected: Response::DualResponse(
+                    Box::new(Response::CorrectSolution(chan.clone(), word2.clone())),
+                    Box::new(Response::Notification(name1.clone(), expected_hash)))
+            },
         ];
 
         for mut test in tests {
@@ -265,162 +352,4 @@ mod tests {
             assert_eq!(actual, test.expected);
         }
     }
-
-    #[test]
-    fn get_puzzle_test() {
-        let chan = Channel("channel".into());
-        let mut state = Niancat::new(&DEFAULT_CHECKWORD);
-        let puzzle = Puzzle("ABCDEFGHI".to_string());
-        state.puzzle = Some(puzzle.clone());
-        let command = Command::GetPuzzle(chan.clone());
-        let expected = Response::GetCommand(chan.clone(), puzzle.clone());
-
-        let actual = apply(&command, &mut state);
-        assert_eq!(actual, expected);
-    }
-
-//    #[test]
-//    fn no_puzzle_set_test() {
-//        let chan = Channel("channel".into());
-//        let mut state = Niancat::new(&DEFAULT_CHECKWORD);
-//        let command = Command::GetPuzzle(chan.clone());
-//        let expected = Response::NoPuzzleSet(chan.clone());
-//        let actual = apply(&command, &mut state);
-//
-//        assert_eq!(actual, expected);
-//    }
-//
-//
-//    #[test]
-//    fn set_puzzle_test() {
-//        let channel = Channel("channel".into());
-//        let p = Puzzle("ABCDEFGHI".to_string());
-//        let mut state = Niancat::new(&DEFAULT_CHECKWORD);
-//        let set_command = Command::SetPuzzle(channel.clone(), p.clone());
-//        let response = set_command.apply(&mut state);
-//
-//        assert!(response == Response::SetPuzzle(channel.clone(), p.clone()));
-//        assert!(state.puzzle == Some(p));
-//    }
-//
-//    #[test]
-//    fn set_invalid_puzzle_test() {
-//        let channel = Channel("channel".into());
-//        let p = Puzzle("ABCDEF".to_string());
-//        let mut state = Niancat::new(&NOT_SOLUTION_CHECKWORD);
-//        let set_command = Command::SetPuzzle(channel.clone(), p.clone());
-//        let response = set_command.apply(&mut state);
-//
-//        assert!(response == Response::InvalidPuzzle(channel.clone(), p.clone(), Reason::NotNineCharacters), "Actual response: {:?}", response);
-//        assert!(state.puzzle == None);
-//
-//        let p = Puzzle("IHGFEDCBA".into());
-//        let set_command = Command::SetPuzzle(channel.clone(), p.clone());
-//        let response = set_command.apply(&mut state);
-//
-//        assert!(response == Response::InvalidPuzzle(channel.clone(), p.clone(), Reason::NotInDictionary));
-//        assert!(state.puzzle == None);
-//    }
-//
-//    #[test]
-//    fn solve_puzzle_test() {
-//        let channel = Channel("channel".into());
-//        let name = Name("erike".to_string());
-//        let word = Word("GALLTJUTA".to_string());
-//
-//        let mut state = Niancat::new(&DEFAULT_CHECKWORD);
-//        state.puzzle = Some(Puzzle("AGALLTJUT".into()));
-//
-//        let command = CheckSolutionCommand {
-//            channel: &channel,
-//            name: name.clone(),
-//            word: word.clone(),
-//        };
-//        let expected_hash = "d8e7363cdad6303dd4c41cb2ad3e2c35759257ca8ac509107e4e9e9ff5741933".to_string();
-//        let expected_solution_response = Response::CorrectSolution(channel.clone(), word.clone());
-//        let expected_notification_response = Response::Notification(name.clone(), expected_hash);
-//
-//        let response = command.apply(&mut state);
-//        match response {
-//            Response::DualResponse(solution_response, notification_response) => {
-//                assert!(*solution_response == expected_solution_response);
-//                assert!(*notification_response == expected_notification_response);
-//            },
-//            _ => assert!(false, "Actual: {:?}", response)
-//        }
-//    }
-//
-//    #[test]
-//    fn incorrect_word_not_in_dict() {
-//        let channel = Channel("channel".into());
-//        let name = Name("erike".to_string());
-//        let word = Word("IHGFEDCBA".to_string());
-//
-//        let mut state = Niancat::new(&NOT_SOLUTION_CHECKWORD);
-//        state.puzzle = Some(Puzzle("ABCDEFGHI".to_string()));
-//
-//        let command = CheckSolutionCommand {
-//            channel: &channel,
-//            name: name.clone(),
-//            word: word.clone(),
-//        };
-//        let response = command.apply(&mut state);
-//        assert!(response == Response::IncorrectSolution(channel.clone(), word.clone(), Reason::NotInDictionary));
-//    }
-//
-//    #[test]
-//    fn incorrect_word_not_nine() {
-//        let channel = Channel("channel".into());
-//        let name = Name("erike".to_string());
-//        let word = Word("NOTNINE".to_string());
-//
-//        let mut state = Niancat::new(&NOT_SOLUTION_CHECKWORD);
-//        state.puzzle = Some(Puzzle("ABCDEFGHI".to_string()));
-//
-//        let command = CheckSolutionCommand {
-//            channel: &channel,
-//            name: name.clone(),
-//            word: word.clone(),
-//        };
-//        let response = command.apply(&mut state);
-//        assert!(response == Response::IncorrectSolution(channel.clone(),
-//                                                        word.clone(),
-//                                                        Reason::NotNineCharacters));
-//    }
-//
-//    #[test]
-//    fn incorrect_word_no_puzzle_set() {
-//        let channel = Channel("channel".into());
-//        let name = Name("erike".to_string());
-//        let word = Word("ABCDEFGHI".to_string());
-//
-//        let mut state = Niancat::new(&NOT_SOLUTION_CHECKWORD);
-//
-//        let command = CheckSolutionCommand {
-//            channel: &channel,
-//            name: name.clone(),
-//            word: word.clone(),
-//        };
-//        let response = command.apply(&mut state);
-//        assert!(response == Response::NoPuzzleSet(channel.clone()));
-//    }
-//
-//    #[test]
-//    fn incorrect_word_non_matching() {
-//        let channel = Channel("channel".into());
-//        let name = Name("erike".to_string());
-//        let word = Word("GALLTJUTA".to_string());
-//
-//        let mut state = Niancat::new(&NOT_SOLUTION_CHECKWORD);
-//        state.puzzle = Some(Puzzle("ABCDEFGHI".to_string()));
-//
-//        let command = CheckSolutionCommand {
-//            channel: &channel,
-//            name: name.clone(),
-//            word: word.clone(),
-//        };
-//        let response = command.apply(&mut state);
-//        let reason = Reason::NonMatchingWord("AJLLTTU".to_string(), "BCDEFHI".to_string());
-//        assert!(response == Response::IncorrectSolution(channel.clone(), word.clone(), reason));
-//    }
 }
