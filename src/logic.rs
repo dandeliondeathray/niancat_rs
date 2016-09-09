@@ -26,6 +26,7 @@ pub trait Command {
     fn apply(&self, state: &mut Niancat) -> Response;
 }
 
+#[derive(Debug)]
 pub struct GetCommand<'a> {
     channel: &'a Channel
 }
@@ -45,6 +46,7 @@ impl<'a> GetCommand<'a> {
     }
 }
 
+#[derive(Debug)]
 pub struct SetPuzzleCommand<'a> {
     channel: &'a Channel,
     puzzle: Puzzle,
@@ -70,6 +72,7 @@ impl<'a> SetPuzzleCommand<'a> {
     }
 }
 
+#[derive(Debug)]
 pub struct CheckSolutionCommand<'a> {
     channel: &'a Channel,
     name: Name,
