@@ -1,8 +1,6 @@
 use logic::*;
 
-pub type CommandResult<'a> = Option<Box<Command + 'a>>;
-
-pub fn parse_command<'a>(text: &String) -> CommandResult<'a> {
+pub fn parse_command(text: &String) -> Option<Command> {
     None
 }
 
@@ -10,20 +8,19 @@ mod tests {
     use super::*;
     use types::*;
     use logic::*;
-    use std::fmt::Debug;
 
-    struct CommandParserTest<'a, T: Command> {
+    struct CommandParserTest<'a> {
         description:    &'static str,
         text:           &'static str,
         channel:        &'a Channel,
-        expected:       T,
+        expected:       Option<Command>,
     }
 
-    impl<'a, T: Command + Debug> CommandParserTest<'a, T> {
+    impl<'a> CommandParserTest<'a> {
         fn new(desc: &'static str,
                text: &'static str,
                chan: &'a Channel,
-               expected: T) -> CommandParserTest<'a, T> {
+               expected: Option<Command>) -> CommandParserTest<'a> {
             CommandParserTest { description: desc,
                                 text: text,
                                 channel: &chan,
@@ -35,29 +32,17 @@ mod tests {
     //const TEST_CHANNEL: Channel = Channel("C0".into());
     //const IM_CHANNEL: Channel   = Channel("D0".into());
 
-    fn check_parser<T: Command + Debug>(test: CommandParserTest<T>) {
-        let result = parse_command(&test.text.into());
-        match result {
-            None => assert!(false, "Actual command result is None, description: {}", test.description),
-            Some(boxed_command) => {
-                let downcast_result = boxed_command.downcast::<T>();
-                match downcast_result {
-                    Ok(x) => assert!(x == test.expected),
-                    Err(y) => assert!(false, "Actual command was {:?}, but expected {:?}", y, test.expected)
-                }
-            }
-        }
-    }
-
     #[test]
     fn set_puzzle_test() {
         let test_user = Channel("C0".into());
         let test = CommandParserTest::new(
                     "Set puzzle",
                     "!setnian ABCDEFGHI", &test_user,
-                    SetPuzzleCommand::new(&test_user, Puzzle("ABCDEFGHI".into())));
+                    Some(Command::SetPuzzle(test_user.clone(), Puzzle("ABCDEFGHI".into()))));
 
+        let actual = parse_command(&test.text.into());
 
+        assert_eq!(actual, test.expected);
     }
 
 
