@@ -20,6 +20,13 @@ impl<'a> Niancat<'a> {
                   dictionary: dictionary,
                 }
     }
+
+    pub fn new_with_puzzle<T: CheckWord>(dictionary: &'a T, puzzle: Puzzle) -> Niancat<'a> {
+        Niancat { puzzle: Some(puzzle),
+                  solutions: MultiMap::new(),
+                  dictionary: dictionary,
+                }
+    }
 }
 
 #[derive(PartialEq, Eq, Debug)]
@@ -231,6 +238,34 @@ mod tests {
         }
     }
 
+    struct CommandTest<'a> {
+        description: &'static str,
+        state: Niancat<'a>,
+        command: Command,
+        expected: Response,
+    }
+
+    #[test]
+    fn commands_test() {
+        let chan = Channel("channel".into());
+
+        let puzzle1 = Puzzle("ABCDEFGHI".to_string());
+
+        let tests: Vec<CommandTest> = vec![
+            CommandTest {
+                description: "Get puzzle",
+                state: Niancat::new_with_puzzle(&DEFAULT_CHECKWORD, puzzle1.clone()),
+                command: Command::GetPuzzle(chan.clone()),
+                expected: Response::GetCommand(chan.clone(), puzzle1.clone())
+            }
+        ];
+
+        for mut test in tests {
+            let actual = apply(&test.command, &mut test.state);
+            assert_eq!(actual, test.expected);
+        }
+    }
+
     #[test]
     fn get_puzzle_test() {
         let chan = Channel("channel".into());
@@ -241,18 +276,18 @@ mod tests {
         let expected = Response::GetCommand(chan.clone(), puzzle.clone());
 
         let actual = apply(&command, &mut state);
-        assert!(actual == expected);
+        assert_eq!(actual, expected);
     }
 
 //    #[test]
 //    fn no_puzzle_set_test() {
 //        let chan = Channel("channel".into());
 //        let mut state = Niancat::new(&DEFAULT_CHECKWORD);
-//        let command = GetCommand { channel: &chan };
+//        let command = Command::GetPuzzle(chan.clone());
 //        let expected = Response::NoPuzzleSet(chan.clone());
-//        let actual = command.apply(&mut state);
+//        let actual = apply(&command, &mut state);
 //
-//        assert!(actual == expected);
+//        assert_eq!(actual, expected);
 //    }
 //
 //
@@ -261,7 +296,7 @@ mod tests {
 //        let channel = Channel("channel".into());
 //        let p = Puzzle("ABCDEFGHI".to_string());
 //        let mut state = Niancat::new(&DEFAULT_CHECKWORD);
-//        let set_command = SetPuzzleCommand { channel: &channel, puzzle: p.clone() };
+//        let set_command = Command::SetPuzzle(channel.clone(), p.clone());
 //        let response = set_command.apply(&mut state);
 //
 //        assert!(response == Response::SetPuzzle(channel.clone(), p.clone()));
@@ -273,14 +308,14 @@ mod tests {
 //        let channel = Channel("channel".into());
 //        let p = Puzzle("ABCDEF".to_string());
 //        let mut state = Niancat::new(&NOT_SOLUTION_CHECKWORD);
-//        let set_command = SetPuzzleCommand { channel: &channel, puzzle: p.clone() };
+//        let set_command = Command::SetPuzzle(channel.clone(), p.clone());
 //        let response = set_command.apply(&mut state);
 //
 //        assert!(response == Response::InvalidPuzzle(channel.clone(), p.clone(), Reason::NotNineCharacters), "Actual response: {:?}", response);
 //        assert!(state.puzzle == None);
 //
 //        let p = Puzzle("IHGFEDCBA".into());
-//        let set_command = SetPuzzleCommand { channel: &channel, puzzle: p.clone() };
+//        let set_command = Command::SetPuzzle(channel.clone(), p.clone());
 //        let response = set_command.apply(&mut state);
 //
 //        assert!(response == Response::InvalidPuzzle(channel.clone(), p.clone(), Reason::NotInDictionary));
