@@ -28,21 +28,23 @@ mod tests {
         }
     }
 
-    //const TEST_USER: Name       = Name("User 0".into());
-    //const TEST_CHANNEL: Channel = Channel("C0".into());
-    //const IM_CHANNEL: Channel   = Channel("D0".into());
-
     #[test]
     fn set_puzzle_test() {
-        let test_user = Channel("C0".into());
-        let test = CommandParserTest::new(
-                    "Set puzzle",
-                    "!setnian ABCDEFGHI", &test_user,
-                    Some(Command::SetPuzzle(test_user.clone(), Puzzle("ABCDEFGHI".into()))));
+        let test_user = Channel("#imchannel".into());
+        let tests = vec![
+            CommandParserTest::new(
+                "Set puzzle",
+                "!setnian ABCDEFGHI", &test_user,
+                Some(Command::SetPuzzle(test_user.clone(), Puzzle("ABCDEFGHI".into())))),
 
-        let actual = parse_command(&test.text.into());
 
-        assert_eq!(actual, test.expected);
+
+        ];
+
+        for test in tests {
+            let actual = parse_command(&test.text.into());
+            assert_eq!(actual, test.expected);
+        }
     }
 
 
