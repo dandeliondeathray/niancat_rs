@@ -49,6 +49,12 @@ pub enum Reason {
 }
 
 #[derive(Eq, PartialEq, Debug)]
+pub enum InvalidReason {
+    UnknownCommand,
+    WrongNoOfParameters,
+}
+
+#[derive(Eq, PartialEq, Debug)]
 pub enum Response {
     GetCommand(Channel, Puzzle),
     NoPuzzleSet(Channel),

@@ -34,6 +34,7 @@ pub enum Command {
     GetPuzzle(Channel),
     SetPuzzle(Channel, Puzzle),
     CheckSolution(Channel, Name, Word),
+    Invalid(Channel, String, InvalidReason),
 }
 
 pub fn apply(command: &Command, state: &mut Niancat) -> Response {
@@ -41,6 +42,7 @@ pub fn apply(command: &Command, state: &mut Niancat) -> Response {
         &Command::GetPuzzle(ref c) => get_puzzle(state, &c),
         &Command::SetPuzzle(ref channel, ref puzzle) => set_puzzle(state, &channel, &puzzle),
         &Command::CheckSolution(ref chan, ref name, ref word) => check_solution(state, &chan, &name, &word),
+        &Command::Invalid(ref chan, ref command, ref reason) => invalid_command(&chan, &command, &reason),
     }
 }
 
@@ -90,6 +92,11 @@ fn check_solution(state: &mut Niancat, channel: &Channel, name: &Name, word: &Wo
     } else {
         Response::NoPuzzleSet(channel.clone())
     }
+}
+
+fn invalid_command(channel: &Channel, command: &String, reason: &InvalidReason) -> Response {
+    // TODO: Implement me
+    Response::NoPuzzleSet(channel.clone())
 }
 
 pub fn solution_hash(&Word(ref s): &Word, &Name(ref nick): &Name) -> String {
@@ -344,6 +351,8 @@ mod tests {
                 expected: Response::DualResponse(
                     Box::new(Response::CorrectSolution(chan.clone(), word2.clone())),
                     Box::new(Response::Notification(name1.clone(), expected_hash)))
+
+            // TODO: Implement test for invalid commands
             },
         ];
 
