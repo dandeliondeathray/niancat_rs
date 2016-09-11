@@ -21,15 +21,25 @@ pub type TooFew = String;
 
 use regex::Regex;
 
+fn normalize_string(s: &String) -> String {
+    lazy_static! {
+        static ref RE: Regex = Regex::new(r"[^A-Za-zåäöÅÄÖ]").unwrap();
+    }
+
+    RE.replace_all(s.as_str(), "").to_uppercase()
+}
+
 impl Word {
     // Normalize a word by removing all non-alpha characters.
     pub fn normalize(&self) -> Word {
-        lazy_static! {
-            static ref RE: Regex = Regex::new(r"[^A-Za-zåäöÅÄÖ]").unwrap();
-        }
-
         let &Word(ref w) = self;
-        Word(RE.replace_all(w.as_str(), "").to_uppercase())
+        Word(normalize_string(&w))
+    }
+}
+
+impl Puzzle {
+    pub fn new(s: &String) -> Puzzle {
+        Puzzle(normalize_string(&s))
     }
 }
 
@@ -89,6 +99,14 @@ mod tests {
     fn normalization_test() {
         for (input, expected) in NORMALIZATION_TESTS.iter().map(|x| (Word(x.0.to_string()), Word(x.1.to_string()))) {
             let actual = input.normalize();
+            assert!(actual == expected, "Actual: {:?}, Expected: {:?}", actual, expected);
+        }
+    }
+
+    #[test]
+    fn puzzle_factory_test() {
+        for (input, expected) in NORMALIZATION_TESTS.iter().map(|x| (x.0.to_string(), Puzzle(x.1.to_string()))) {
+            let actual = Puzzle::new(&input);
             assert!(actual == expected, "Actual: {:?}, Expected: {:?}", actual, expected);
         }
     }

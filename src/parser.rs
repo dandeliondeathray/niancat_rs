@@ -1,6 +1,58 @@
 use logic::*;
+use types::*;
 
-pub fn parse_command(text: &String) -> Option<Command> {
+struct CommandParser {
+    name: &'static str,
+    pos_args: Option<usize>,
+    make: Box<Fn(Channel, &Vec<&str>) -> Command>,
+}
+
+impl CommandParser {
+    fn matches_args(&self, no_of_args: usize) -> bool {
+        match self.pos_args {
+            None => no_of_args > 0,
+            Some(expected_no_of_args) => no_of_args == expected_no_of_args
+        }
+    }
+}
+
+pub fn parse_command(chan: &Channel, text: &String) -> Option<Command> {
+    let commands: Vec<CommandParser> = vec![
+        CommandParser {
+            name: "!setnian",
+            pos_args: Some(1),
+            make: Box::new(|c, args| Command::SetPuzzle(c, Puzzle(args[0].into()))),
+        },
+
+        CommandParser {
+            name: "!setnian",
+            pos_args: Some(3),
+            make: Box::new(|c, args| Command::SetPuzzle(c, Puzzle::new(&args.concat()))),
+        },
+
+        CommandParser {
+            name: "!nian",
+            pos_args: Some(0),
+            make: Box::new(|c, _| Command::GetPuzzle(c)),
+        }
+    ];
+
+    let parts: Vec<&str> = text.split_whitespace().collect();
+
+    if parts.is_empty() {
+        return None;
+    }
+
+    let name = parts[0];
+    let args: Vec<&str> = parts[1..].iter().cloned().collect();
+    if name.starts_with('!') {
+        for command in commands {
+            if name == command.name && command.matches_args(args.len()) {
+                return Some((command.make)(chan.clone(), &args));
+            }
+        }
+    }
+
     None
 }
 
@@ -38,6 +90,11 @@ mod tests {
             CommandParserTest::new(
                 "Set puzzle",
                 "!setnian ABCDEFGHI", &test_channel,
+                Some(Command::SetPuzzle(test_channel.clone(), Puzzle("ABCDEFGHI".into())))),
+
+            CommandParserTest::new(
+                "Set puzzle",
+                "!setnian ABC DEF GHI", &test_channel,
                 Some(Command::SetPuzzle(test_channel.clone(), Puzzle("ABCDEFGHI".into())))),
 
             CommandParserTest::new(
@@ -102,7 +159,7 @@ mod tests {
         ];
 
         for test in tests {
-            let actual = parse_command(&test.text.into());
+            let actual = parse_command(&test.channel, &test.text.into());
             assert_eq!(actual, test.expected);
         }
     }
