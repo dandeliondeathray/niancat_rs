@@ -30,14 +30,19 @@ mod tests {
 
     #[test]
     fn set_puzzle_test() {
-        let test_user = Channel("#imchannel".into());
+        let test_channel = Channel("C0".into());
+        let im_channel = Channel("D0".into());
+
         let tests = vec![
             CommandParserTest::new(
                 "Set puzzle",
-                "!setnian ABCDEFGHI", &test_user,
-                Some(Command::SetPuzzle(test_user.clone(), Puzzle("ABCDEFGHI".into())))),
+                "!setnian ABCDEFGHI", &test_channel,
+                Some(Command::SetPuzzle(test_channel.clone(), Puzzle("ABCDEFGHI".into())))),
 
-
+            CommandParserTest::new(
+                "Get puzzle",
+                "!nian", &test_channel,
+                Some(Command::GetPuzzle(test_channel.clone()))),
 
         ];
 
@@ -46,12 +51,6 @@ mod tests {
             assert_eq!(actual, test.expected);
         }
     }
-
-
-    //        CommandParserTest::new(
-    //            "Get puzzle",
-    //            "!nian", &TEST_CHANNEL,
-    //            cmd(GetCommand::new(&TEST_CHANNEL))),
 
 //    #[test]
 //    fn command_tests() {

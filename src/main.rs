@@ -16,7 +16,10 @@ impl slack::EventHandler for NiancatHandler {
                 _client: &mut slack::RtmClient,
                 event: Result<&slack::Event, slack::Error>,
                 raw_json: &str) {
-        println!("on_event(event: {:?}, raw_json: {:?}", event, raw_json);
+        match event {
+            Ok(ok_event) => println!("on_event(event: {:?}, raw_json: {:?}", ok_event, raw_json),
+            Err(bad_event) => println!("on_event(bad event: {:?}, raw_json: {:?}", bad_event, raw_json)
+        }
     }
 
     fn on_ping(&mut self, _client: &mut slack::RtmClient) {
