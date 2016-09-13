@@ -6,7 +6,6 @@ Missing modules
 
 - Serializing responses
 - Initialization from dictionary
-- Parsing commands
 - Slack handler (which ties together the above)
 
 Missing features
@@ -25,16 +24,10 @@ creating `CheckSolutionCommand`.
 
 Because of context dependent commands, it is possible that the parser does not create a command,
 even though no error occurred. Therefore, the returned command from the parser should be
-`Option<Box<Command>>`. It must be a `Box` because there are many different types of commands, so
-the size it not known.
-However, the parser may also result in an error, if the command is malformed. Therefore, it must
-return a `Result<CommandResult, CommandParserError>`. Here I assume that `CommandResult` is an
-alias for `Option<Box<Command>>`.
+similar to `Option<Command>`. However, the parser may result in a known but invalid command, so the
+return value should be `Option<Result<Command, InvalidCommand>>`.
 
-Module notes: Commands and Responses should be moved to the `types` module, or a module of their
-own. They are now located in `logic`, and the parser should not depend on the logic.
-
-We should be able to take a bunch of tests from the Julia version of Niancat.
+This means that the logic module will never receive invalid commands, which makes sense.
 
 Initialization from dictionary
 ------------------------------
@@ -51,6 +44,19 @@ Slack handler
 -------------
 This will be a relatively simple part to implement, but the testing would really need some mock
 objects. Unfortunately there are no mature mock libraries for Rust that I'm aware.
+
+2016-09-13
+----------
+Finished the command parser, aside from unsolution commands. They will be simple to add however.
+Impllementing the parser required a redesign of the commands, but it appears to be much simpler now.
+My previous idea was that each command was a separate struct, implementing a trait `Command`. This
+would work just fine, except that it's hard to test. The parser would have had to return a
+`Box<&Command>`, and it became very difficult to test that the correct struct was returned inside
+the box, as that type information had been lost. This led to a redesign where each command is part
+of an enum `Command`. This means that the logic could no longer just call a function on the command
+trait, but instead has to match each possible command. Given how few commands there are, and more
+importantly it's a fixed number of commands, this was very easy. Also, we get a compiler error if
+the match is non-exhaustive.
 
 2016-09-06
 ----------
