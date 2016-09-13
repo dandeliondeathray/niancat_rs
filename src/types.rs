@@ -49,7 +49,11 @@ impl fmt::Display for Puzzle {
     }
 }
 
-
+impl Channel {
+    pub fn is_private(&self) -> bool {
+        self.0.starts_with("D")
+    }
+}
 
 #[derive(Eq, PartialEq, Debug)]
 pub enum Reason {
@@ -73,6 +77,7 @@ pub enum Response {
     CorrectSolution(Channel, Word),
     Notification(Name, WordHash),
     IncorrectSolution(Channel, Word, Reason),
+    Help(Channel),
     DualResponse(Box<Response>, Box<Response>),
     TripleResponse(Box<Response>, Box<Response>, Box<Response>),
 }
@@ -109,5 +114,11 @@ mod tests {
             let actual = Puzzle::new(&input);
             assert!(actual == expected, "Actual: {:?}, Expected: {:?}", actual, expected);
         }
+    }
+
+    #[test]
+    fn public_private_channels() {
+        assert!(!Channel("C0123".into()).is_private());
+        assert!(Channel("D0123".into()).is_private());
     }
 }

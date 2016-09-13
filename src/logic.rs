@@ -35,6 +35,7 @@ pub enum Command {
     SetPuzzle(Channel, Puzzle),
     CheckSolution(Channel, Name, Word),
     Invalid(Channel, String, InvalidReason),
+    Help(Channel),
 }
 
 pub fn apply(command: &Command, state: &mut Niancat) -> Response {
@@ -43,6 +44,7 @@ pub fn apply(command: &Command, state: &mut Niancat) -> Response {
         &Command::SetPuzzle(ref channel, ref puzzle) => set_puzzle(state, &channel, &puzzle),
         &Command::CheckSolution(ref chan, ref name, ref word) => check_solution(state, &chan, &name, &word),
         &Command::Invalid(ref chan, ref command, ref reason) => invalid_command(&chan, &command, &reason),
+        &Command::Help(ref chan) => help_command(&chan),
     }
 }
 
@@ -97,6 +99,10 @@ fn check_solution(state: &mut Niancat, channel: &Channel, name: &Name, word: &Wo
 fn invalid_command(channel: &Channel, command: &String, reason: &InvalidReason) -> Response {
     // TODO: Implement me
     Response::NoPuzzleSet(channel.clone())
+}
+
+fn help_command(channel: &Channel) -> Response {
+    Response::Help(channel.clone())
 }
 
 pub fn solution_hash(&Word(ref s): &Word, &Name(ref nick): &Name) -> String {
@@ -351,9 +357,16 @@ mod tests {
                 expected: Response::DualResponse(
                     Box::new(Response::CorrectSolution(chan.clone(), word2.clone())),
                     Box::new(Response::Notification(name1.clone(), expected_hash)))
+            },
+
+            CommandTest {
+                description: "Help",
+                state: Niancat::new(&DEFAULT_CHECKWORD),
+                command: Command::Help(chan.clone()),
+                expected: Response::Help(chan.clone()),
+            },
 
             // TODO: Implement test for invalid commands
-            },
         ];
 
         for mut test in tests {
