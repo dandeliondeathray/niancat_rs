@@ -34,16 +34,17 @@ pub enum Command {
     GetPuzzle(Channel),
     SetPuzzle(Channel, Puzzle),
     CheckSolution(Channel, Name, Word),
-    Invalid(Channel, String, InvalidReason),
     Help(Channel),
 }
+
+#[derive(PartialEq, Eq, Debug)]
+pub struct InvalidCommand(pub Channel, pub String, pub InvalidReason);
 
 pub fn apply(command: &Command, state: &mut Niancat) -> Response {
     match command {
         &Command::GetPuzzle(ref c) => get_puzzle(state, &c),
         &Command::SetPuzzle(ref channel, ref puzzle) => set_puzzle(state, &channel, &puzzle),
         &Command::CheckSolution(ref chan, ref name, ref word) => check_solution(state, &chan, &name, &word),
-        &Command::Invalid(ref chan, ref command, ref reason) => invalid_command(&chan, &command, &reason),
         &Command::Help(ref chan) => help_command(&chan),
     }
 }
@@ -94,11 +95,6 @@ fn check_solution(state: &mut Niancat, channel: &Channel, name: &Name, word: &Wo
     } else {
         Response::NoPuzzleSet(channel.clone())
     }
-}
-
-fn invalid_command(channel: &Channel, command: &String, reason: &InvalidReason) -> Response {
-    // TODO: Implement me
-    Response::NoPuzzleSet(channel.clone())
 }
 
 fn help_command(channel: &Channel) -> Response {
@@ -365,8 +361,6 @@ mod tests {
                 command: Command::Help(chan.clone()),
                 expected: Response::Help(chan.clone()),
             },
-
-            // TODO: Implement test for invalid commands
         ];
 
         for mut test in tests {

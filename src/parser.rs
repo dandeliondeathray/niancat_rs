@@ -16,7 +16,9 @@ impl CommandParser {
     }
 }
 
-pub fn parse_command(chan: &Channel, name: &Name, text: &String) -> Option<Command> {
+pub type CommandResult = Option<Result<Command, InvalidCommand>>;
+
+pub fn parse_command(chan: &Channel, name: &Name, text: &String) -> CommandResult {
     let commands: Vec<CommandParser> = vec![
         CommandParser {
             name: "!setnian",
@@ -59,7 +61,7 @@ pub fn parse_command(chan: &Channel, name: &Name, text: &String) -> Option<Comma
         for command in commands {
             if command_name == command.name {
                 if command.matches_args(args.len()) {
-                    return Some((command.make)(chan.clone(), &args));
+                    return Some(Ok((command.make)(chan.clone(), &args)));
                 } else {
                     invalidReason = Some(InvalidReason::WrongNoOfParameters);
                 }
@@ -67,17 +69,17 @@ pub fn parse_command(chan: &Channel, name: &Name, text: &String) -> Option<Comma
         }
 
         if let Some(reason) = invalidReason {
-            return Some(Command::Invalid(chan.clone(), text.clone(), reason));
+            return Some(Err(InvalidCommand(chan.clone(), text.clone(), reason)));
         }
 
         // If an unknown command is found in a public channel, then it might be for another bot, so
         // we can't respond to it. If it's in a private channel, then it must be meant for us, but
         // is unknown.
         if chan.is_private() {
-            return Some(Command::Invalid(chan.clone(), text.clone(), InvalidReason::UnknownCommand));
+            return Some(Err(InvalidCommand(chan.clone(), text.clone(), InvalidReason::UnknownCommand)));
         }
     } else if chan.is_private() {
-        return Some(Command::CheckSolution(chan.clone(), name.clone(), Word(text.clone())));
+        return Some(Ok(Command::CheckSolution(chan.clone(), name.clone(), Word(text.clone()))));
     }
 
     None
@@ -93,7 +95,7 @@ mod tests {
         text:           &'static str,
         channel:        &'a Channel,
         name:           &'a Name,
-        expected:       Option<Command>,
+        expected:       CommandResult,
     }
 
     impl<'a> CommandParserTest<'a> {
@@ -101,7 +103,7 @@ mod tests {
                text: &'static str,
                chan: &'a Channel,
                name: &'a Name,
-               expected: Option<Command>) -> CommandParserTest<'a> {
+               expected: CommandResult) -> CommandParserTest<'a> {
             CommandParserTest { description: desc,
                                 text: text,
                                 channel: &chan,
@@ -120,22 +122,22 @@ mod tests {
             CommandParserTest::new(
                 "Set puzzle",
                 "!setnian ABCDEFGHI", &test_channel, &test_user,
-                Some(Command::SetPuzzle(test_channel.clone(), Puzzle("ABCDEFGHI".into())))),
+                Some(Ok(Command::SetPuzzle(test_channel.clone(), Puzzle("ABCDEFGHI".into()))))),
 
             CommandParserTest::new(
                 "Set puzzle",
                 "!setnian ABC DEF GHI", &test_channel, &test_user,
-                Some(Command::SetPuzzle(test_channel.clone(), Puzzle("ABCDEFGHI".into())))),
+                Some(Ok(Command::SetPuzzle(test_channel.clone(), Puzzle("ABCDEFGHI".into()))))),
 
             CommandParserTest::new(
                 "Get puzzle",
                 "!nian", &test_channel, &test_user,
-                Some(Command::GetPuzzle(test_channel.clone()))),
+                Some(Ok(Command::GetPuzzle(test_channel.clone())))),
 
-            //CommandParserTest::new(
-            //    "Help",
-            //    "!helpnian", &test_channel,
-            //    Some(HelpCommand(&test_channel, TEST_USER.clone()))),
+            CommandParserTest::new(
+                "Help",
+                "!helpnian", &test_channel, &test_user,
+                Some(Ok(Command::Help(test_channel.clone())))),
 
             CommandParserTest::new(
                 "Ignore non-commands in public channel",
@@ -145,12 +147,12 @@ mod tests {
             CommandParserTest::new(
                 "Check solution",
                 "ABCDEFGHI", &im_channel, &test_user,
-                Some(Command::CheckSolution(im_channel.clone(), test_user.clone(), Word("ABCDEFGHI".into())))),
+                Some(Ok(Command::CheckSolution(im_channel.clone(), test_user.clone(), Word("ABCDEFGHI".into()))))),
 
             CommandParserTest::new(
                 "Check solution, with spaces",
                 "ABC DEF GHI", &im_channel, &test_user,
-                Some(Command::CheckSolution(im_channel.clone(), test_user.clone(), Word("ABC DEF GHI".into())))),
+                Some(Ok(Command::CheckSolution(im_channel.clone(), test_user.clone(), Word("ABC DEF GHI".into()))))),
 
             CommandParserTest::new(
                 "No command",
@@ -165,26 +167,26 @@ mod tests {
             CommandParserTest::new(
                 "Unknown command in private channel",
                 "!nosuchcommand", &im_channel, &test_user,
-                Some(Command::Invalid(im_channel.clone(), "!nosuchcommand".into(),
-                                      InvalidReason::UnknownCommand))),
+                Some(Err(InvalidCommand(im_channel.clone(), "!nosuchcommand".into(),
+                                        InvalidReason::UnknownCommand)))),
 
             CommandParserTest::new(
                 "Set puzzle with too many parameters",
                 "!setnian ABCDEFGHI more parameters than allowed", &test_channel, &test_user,
-                Some(Command::Invalid(test_channel.clone(), "!setnian ABCDEFGHI more parameters than allowed".into(),
-                                      InvalidReason::WrongNoOfParameters))),
+                Some(Err(InvalidCommand(test_channel.clone(), "!setnian ABCDEFGHI more parameters than allowed".into(),
+                                        InvalidReason::WrongNoOfParameters)))),
 
             CommandParserTest::new(
                 "Get puzzle with too many parameters",
                 "!nian yoyoyo", &test_channel, &test_user,
-                Some(Command::Invalid(test_channel.clone(), "!nian yoyoyo".into(),
-                                      InvalidReason::WrongNoOfParameters))),
+                Some(Err(InvalidCommand(test_channel.clone(), "!nian yoyoyo".into(),
+                                        InvalidReason::WrongNoOfParameters)))),
 
             CommandParserTest::new(
                 "Help with too many parameters",
                 "!helpnian yoyoyo", &test_channel, &test_user,
-                Some(Command::Invalid(test_channel.clone(), "!helpnian yoyoyo".into(),
-                                      InvalidReason::WrongNoOfParameters))),
+                Some(Err(InvalidCommand(test_channel.clone(), "!helpnian yoyoyo".into(),
+                                        InvalidReason::WrongNoOfParameters)))),
 
         ];
 
