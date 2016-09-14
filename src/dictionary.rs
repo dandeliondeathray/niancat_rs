@@ -1,6 +1,9 @@
 use std::collections::HashSet;
 use std::iter::FromIterator;
 use multimap::MultiMap;
+use std::path::Path;
+use std::io::{BufReader, BufRead, Result};
+use std::fs;
 
 use super::types::*;
 
@@ -41,6 +44,13 @@ impl Dictionary {
         }
 
         Dictionary { words: words, solutions: solutions }
+    }
+
+    pub fn from_file<P: AsRef<Path> + ?Sized>(path: &P) -> Result<Dictionary> {
+        let f = try!(fs::File::open(path));
+        let f = BufReader::new(f);
+
+        Ok(Dictionary::new(f.lines().map(|x| x.unwrap())))
     }
 }
 
