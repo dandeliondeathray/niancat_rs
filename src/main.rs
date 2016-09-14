@@ -1,39 +1,5 @@
+extern crate niancat;
 extern crate slack;
-#[macro_use] extern crate lazy_static;
-extern crate regex;
-extern crate multimap;
-extern crate crypto;
-
-mod types;
-mod dictionary;
-mod logic;
-mod parser;
-
-struct NiancatHandler;
-
-impl slack::EventHandler for NiancatHandler {
-    fn on_event(&mut self,
-                _client: &mut slack::RtmClient,
-                event: Result<&slack::Event, slack::Error>,
-                raw_json: &str) {
-        match event {
-            Ok(ok_event) => println!("on_event(event: {:?}, raw_json: {:?}", ok_event, raw_json),
-            Err(bad_event) => println!("on_event(bad event: {:?}, raw_json: {:?}", bad_event, raw_json)
-        }
-    }
-
-    fn on_ping(&mut self, _client: &mut slack::RtmClient) {
-        println!("on_ping");
-    }
-
-    fn on_close(&mut self, _client: &mut slack::RtmClient) {
-        println!("on_close");
-    }
-
-    fn on_connect(&mut self, _client: &mut slack::RtmClient) {
-        println!("on_connect");
-    }
-}
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
@@ -44,9 +10,9 @@ fn main() {
         }
     };
 
-    let mut handler = NiancatHandler;
+    let mut handler = niancat::NiancatHandler;
     let mut client = slack::RtmClient::new(&api_key);
-    let r = client.login_and_run::<NiancatHandler>(&mut handler);
+    let r = client.login_and_run::<niancat::NiancatHandler>(&mut handler);
     match r {
         Ok(_) => {}
         Err(err) => panic!("Error: {}", err),

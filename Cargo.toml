@@ -1,5 +1,5 @@
 [package]
-name = "niancat_rs"
+name = "niancat"
 version = "0.1.0"
 authors = ["Erik Edin <erikedin.name@gmail.com>"]
 

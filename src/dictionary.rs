@@ -1,6 +1,8 @@
 use std::collections::HashSet;
 use std::iter::FromIterator;
 use multimap::MultiMap;
+use std::path::Path;
+use std::io;
 
 use super::types::*;
 
@@ -41,6 +43,10 @@ impl Dictionary {
         }
 
         Dictionary { words: words, solutions: solutions }
+    }
+
+    pub fn from_file<P: AsRef<Path> + ?Sized>(path: &P) -> io::Result<Dictionary> {
+        Err(io::Error::new(io::ErrorKind::Other, "oh no!"))
     }
 }
 
