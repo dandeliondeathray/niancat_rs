@@ -5,7 +5,6 @@ Missing modules
 ---------------
 
 - Serializing responses
-- Initialization from dictionary
 - Slack handler (which ties together the above)
 
 Missing features
@@ -29,21 +28,46 @@ return value should be `Option<Result<Command, InvalidCommand>>`.
 
 This means that the logic module will never receive invalid commands, which makes sense.
 
-Initialization from dictionary
-------------------------------
-This should be fairly easy, as the `Dictionary` struct does its own filtering of words. It will be
-a function that reads a file and produces an iterator over the lines of the file. More or less.
+Initialization
+--------------
+Initialization is done in a couple of steps. The arguments given on the command line are:
 
-NOTE: Check for whitespace trimming issues when integrating with `Dictionary`.
+1. The Slack token for the given team
+2. The _name_ of the channel in which the bot will write notifications
+3. The dictionary file.
+
+Initialization should result in a `NiancatHandler` being created, and logged in.
+The handler requires a dictionary, and the _channel id_ of the notification channel. Therefore,
+initialization must look up the channel id, given the channel name.
+
+The initialization function will result in both a dictionary, and a channel id. The initialization
+function must take a trait that will do a channel listing, so we can test the initialization
+properly.
 
 Serializing responses
 ---------------------
 Somewhat difficult to test exactly. There are a number of tests in Julia which we can take.
 
+Responses are always associated with a channel. There may be more than one response to a single
+command. For instance, solving the puzzle leads to two responses: one to the user that the word is
+correct, and one notification to the main channel.
+
+We'll let the event handler actually send the messages. This means that the `response` module will
+return a list of channels and strings to send.
+
 Slack handler
 -------------
 This will be a relatively simple part to implement, but the testing would really need some mock
 objects. Unfortunately there are no mature mock libraries for Rust that I'm aware.
+
+2016-09-14
+----------
+Broke the bot into a main module and a library module, so integration testing can be done.
+
+Implemented the initialization function. Still missing is the actual use of it in the main module,
+as well as an adaptor struct for adapting the initialization to the Slack crate.
+
+
 
 2016-09-13
 ----------

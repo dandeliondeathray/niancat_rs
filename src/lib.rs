@@ -11,6 +11,7 @@ pub mod types;
 pub mod dictionary;
 mod logic;
 mod parser;
+mod response;
 
 pub struct NiancatHandler;
 

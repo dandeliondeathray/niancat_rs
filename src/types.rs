@@ -15,10 +15,6 @@ pub struct User(pub String);
 #[derive(Hash, Eq, PartialEq, Clone, Debug)]
 pub struct Channel(pub String);
 
-pub type WordHash = String;
-pub type TooMany = String;
-pub type TooFew = String;
-
 use regex::Regex;
 
 fn normalize_string(s: &String) -> String {
@@ -54,35 +50,6 @@ impl Channel {
         self.0.starts_with("D")
     }
 }
-
-#[derive(Eq, PartialEq, Debug)]
-pub enum Reason {
-    NotInDictionary,
-    NotNineCharacters,
-    NonMatchingWord(TooMany, TooFew),
-}
-
-#[derive(Eq, PartialEq, Debug)]
-pub enum InvalidReason {
-    UnknownCommand,
-    WrongNoOfParameters,
-}
-
-#[derive(Eq, PartialEq, Debug)]
-pub enum Response {
-    GetCommand(Channel, Puzzle),
-    NoPuzzleSet(Channel),
-    SetPuzzle(Channel, Puzzle),
-    InvalidPuzzle(Channel, Puzzle, Reason),
-    CorrectSolution(Channel, Word),
-    Notification(Name, WordHash),
-    IncorrectSolution(Channel, Word, Reason),
-    Help(Channel),
-    DualResponse(Box<Response>, Box<Response>),
-    TripleResponse(Box<Response>, Box<Response>, Box<Response>),
-}
-
-
 
 #[cfg(test)]
 mod tests {

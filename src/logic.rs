@@ -6,6 +6,7 @@ use multimap::MultiMap;
 
 use types::*;
 use dictionary::*;
+use response::*;
 
 pub struct Niancat<'a> {
     puzzle: Option<Puzzle>,
@@ -36,9 +37,6 @@ pub enum Command {
     CheckSolution(Channel, Name, Word),
     Help(Channel),
 }
-
-#[derive(PartialEq, Eq, Debug)]
-pub struct InvalidCommand(pub Channel, pub String, pub InvalidReason);
 
 pub fn apply(command: &Command, state: &mut Niancat) -> Response {
     match command {
@@ -161,6 +159,7 @@ mod tests {
     use super::*;
     use types::*;
     use dictionary::*;
+    use response::*;
 
     const HASH_TESTS: &'static [(&'static str, &'static str, &'static str)] = &[
         ("GALLTJUTA", "f00ale",   "f72e9a9523bbc72bf7366a58a04046408d2d88ea811afdc9a459d24e077fa71d"),

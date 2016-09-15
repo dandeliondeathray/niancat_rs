@@ -1,5 +1,6 @@
 use logic::*;
 use types::*;
+use response::*;
 
 struct CommandParser {
     name: &'static str,
@@ -89,6 +90,7 @@ mod tests {
     use super::*;
     use types::*;
     use logic::*;
+    use response::*;
 
     struct CommandParserTest<'a> {
         description:    &'static str,
