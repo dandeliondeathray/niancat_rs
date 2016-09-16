@@ -413,30 +413,7 @@ mod tests {
 
 
 
-//    ResponderTest {
-//        "Incorrect solution, because it doesn't match todays puzzle",
-//        NonMatchingWordResponse(
-//            Channel("D0"), Word("FOO"), Puzzle("BAR"), utf8("ABC"), utf8("")),
-//        expected: vec![
-//            TestEvent {
-//                channel: Channel("D0"), "FOO", "matchar inte", "många ABC";
-//            has_not=["få"])]),
-//
-//    ResponderTest {
-//        "Incorrect solution, because it doesn't match todays puzzle",
-//        NonMatchingWordResponse(
-//            Channel("D0"), Word("FOO"), Puzzle("BAR"), utf8(""), utf8("DEF")),
-//        expected: vec![
-//            TestEvent {
-//                channel: Channel("D0"), "FOO", "matchar inte", "få DEF";
-//            has_not=["många"])]),
-//
-//    ResponderTest {
-//        "Incorrect solution, for unknown reason",
-//        IncorrectSolutionResponse(Channel("D0"), Word("FOO"), :other_reason),
-//        expected: vec![
-//            TestEvent {
-//                channel: Channel("D0"), "FOO", "oklara skäl")]),
+
 //
 //    ResponderTest {
 //        "Set an unsolution",
