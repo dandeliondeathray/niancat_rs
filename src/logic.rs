@@ -50,20 +50,20 @@ pub fn apply(command: &Command, state: &mut Niancat) -> Response {
 
 fn get_puzzle(state: &mut Niancat, channel: &Channel) -> Response {
     match state.puzzle {
-        Some(ref puzzle) => Response::GetCommand(channel.clone(), puzzle.clone()),
+        Some(ref puzzle) => Response::GetPuzzle(channel.clone(), puzzle.clone(), 1),
         None => Response::NoPuzzleSet(channel.clone())
     }
 }
 
 fn set_puzzle(state: &mut Niancat, channel: &Channel, puzzle: &Puzzle) -> Response {
     if !is_right_length(&puzzle.0) {
-        return Response::InvalidPuzzle(channel.clone(), puzzle.clone(), Reason::NotNineCharacters);
+        return Response::InvalidPuzzle(channel.clone(), puzzle.clone(), InvalidPuzzleReason::NotNineCharacters);
     }
     if state.dictionary.has_solution(&puzzle) {
         state.puzzle = Some(puzzle.clone());
-        Response::SetPuzzle(channel.clone(), puzzle.clone())
+        Response::SetPuzzle(channel.clone(), puzzle.clone(), 1)
     } else {
-        Response::InvalidPuzzle(channel.clone(), puzzle.clone(), Reason::NotInDictionary)
+        Response::InvalidPuzzle(channel.clone(), puzzle.clone(), InvalidPuzzleReason::NotInDictionary)
     }
 }
 
@@ -75,7 +75,7 @@ fn check_solution(state: &mut Niancat, channel: &Channel, name: &Name, word: &Wo
         }
 
         if let Some((too_few, too_many)) = non_match(&puzzle, &word) {
-            let reason = Reason::NonMatchingWord(too_many, too_few);
+            let reason = Reason::NonMatchingWord(puzzle.clone(), too_many, too_few);
             return Response::IncorrectSolution(channel.clone(), word.clone(),
                 reason)
         }
@@ -85,7 +85,7 @@ fn check_solution(state: &mut Niancat, channel: &Channel, name: &Name, word: &Wo
             let correct_solution = Response::CorrectSolution(channel.clone(),
                 word.clone());
             let notification = Response::Notification(name.clone(), hash);
-            return Response::DualResponse(Box::new(correct_solution), Box::new(notification));
+            return Response::Dual(Box::new(correct_solution), Box::new(notification));
         } else {
             return Response::IncorrectSolution(channel.clone(), word.clone(),
                 Reason::NotInDictionary);
@@ -113,10 +113,6 @@ pub fn string_to_dict(s: &String) -> HashMap<char, u32> {
         *counter += 1;
     }
     h
-}
-
-fn is_right_length(w: &String) -> bool {
-    return w.chars().collect::<Vec<char>>().len() == 9
 }
 
 pub fn non_match(&Puzzle(ref puzzle): &Puzzle, &Word(ref word): &Word) -> Option<(String, String)> {
@@ -254,7 +250,7 @@ mod tests {
         let set_command = Command::SetPuzzle(channel.clone(), p.clone());
         let response = apply(&set_command, &mut state);
 
-        assert!(response == Response::SetPuzzle(channel.clone(), p.clone()));
+        assert!(response == Response::SetPuzzle(channel.clone(), p.clone(), 1));
         assert!(state.puzzle == Some(p));
     }
 
@@ -267,14 +263,15 @@ mod tests {
         let set_command = Command::SetPuzzle(channel.clone(), p.clone());
         let response = apply(&set_command, &mut state);
 
-        assert!(response == Response::InvalidPuzzle(channel.clone(), p.clone(), Reason::NotNineCharacters), "Actual response: {:?}", response);
+        assert!(response == Response::InvalidPuzzle(channel.clone(), p.clone(), InvalidPuzzleReason::NotNineCharacters),
+                "Actual response: {:?}", response);
         assert!(state.puzzle == None);
 
         let p = Puzzle("IHGFEDCBA".into());
         let set_command = Command::SetPuzzle(channel.clone(), p.clone());
         let response = apply(&set_command, &mut state);
 
-        assert!(response == Response::InvalidPuzzle(channel.clone(), p.clone(), Reason::NotInDictionary));
+        assert!(response == Response::InvalidPuzzle(channel.clone(), p.clone(), InvalidPuzzleReason::NotInDictionary));
         assert!(state.puzzle == None);
     }
 
@@ -306,7 +303,7 @@ mod tests {
                 description: "Get puzzle",
                 state: Niancat::new_with_puzzle(&DEFAULT_CHECKWORD, puzzle1.clone()),
                 command: Command::GetPuzzle(chan.clone()),
-                expected: Response::GetCommand(chan.clone(), puzzle1.clone())
+                expected: Response::GetPuzzle(chan.clone(), puzzle1.clone(), 1)
             },
 
             CommandTest {
@@ -342,14 +339,14 @@ mod tests {
                 state: Niancat::new_with_puzzle(&NOT_SOLUTION_CHECKWORD, Puzzle("ABCDEFGHI".into())),
                 command: Command::CheckSolution(chan.clone(), name1.clone(), word2.clone()),
                 expected: Response::IncorrectSolution(chan.clone(), word2.clone(),
-                    Reason::NonMatchingWord("AJLLTTU".to_string(), "BCDEFHI".to_string()))
+                    Reason::NonMatchingWord(Puzzle("ABCDEFGHI".into()), "AJLLTTU".to_string(), "BCDEFHI".to_string()))
             },
 
             CommandTest {
                 description: "Solving the puzzle",
                 state: Niancat::new_with_puzzle(&DEFAULT_CHECKWORD, Puzzle("AGALLTJUT".into())),
                 command: Command::CheckSolution(chan.clone(), name1.clone(), word2.clone()),
-                expected: Response::DualResponse(
+                expected: Response::Dual(
                     Box::new(Response::CorrectSolution(chan.clone(), word2.clone())),
                     Box::new(Response::Notification(name1.clone(), expected_hash)))
             },

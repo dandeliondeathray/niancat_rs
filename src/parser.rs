@@ -55,7 +55,7 @@ pub fn parse_command(chan: &Channel, name: &Name, text: &String) -> CommandResul
     let command_name = parts[0];
     let args: Vec<&str> = parts[1..].iter().cloned().collect();
     if command_name.starts_with('!') {
-        let mut invalidReason: Option<InvalidReason> = None;
+        let mut invalidReason: Option<InvalidCommandReason> = None;
         // If the command name matches, but the no of parameters don't match, then it will go on to
         // the next `CommandParser`. However, we want to respond to it as an invalid command, with
         // the wrong number of parameters.
@@ -64,7 +64,7 @@ pub fn parse_command(chan: &Channel, name: &Name, text: &String) -> CommandResul
                 if command.matches_args(args.len()) {
                     return Some(Ok((command.make)(chan.clone(), &args)));
                 } else {
-                    invalidReason = Some(InvalidReason::WrongNoOfParameters);
+                    invalidReason = Some(InvalidCommandReason::WrongNoOfParameters);
                 }
             }
         }
@@ -77,7 +77,7 @@ pub fn parse_command(chan: &Channel, name: &Name, text: &String) -> CommandResul
         // we can't respond to it. If it's in a private channel, then it must be meant for us, but
         // is unknown.
         if chan.is_private() {
-            return Some(Err(InvalidCommand(chan.clone(), text.clone(), InvalidReason::UnknownCommand)));
+            return Some(Err(InvalidCommand(chan.clone(), text.clone(), InvalidCommandReason::UnknownCommand)));
         }
     } else if chan.is_private() {
         return Some(Ok(Command::CheckSolution(chan.clone(), name.clone(), Word(text.clone()))));
@@ -170,25 +170,25 @@ mod tests {
                 "Unknown command in private channel",
                 "!nosuchcommand", &im_channel, &test_user,
                 Some(Err(InvalidCommand(im_channel.clone(), "!nosuchcommand".into(),
-                                        InvalidReason::UnknownCommand)))),
+                                        InvalidCommandReason::UnknownCommand)))),
 
             CommandParserTest::new(
                 "Set puzzle with too many parameters",
                 "!setnian ABCDEFGHI more parameters than allowed", &test_channel, &test_user,
                 Some(Err(InvalidCommand(test_channel.clone(), "!setnian ABCDEFGHI more parameters than allowed".into(),
-                                        InvalidReason::WrongNoOfParameters)))),
+                                        InvalidCommandReason::WrongNoOfParameters)))),
 
             CommandParserTest::new(
                 "Get puzzle with too many parameters",
                 "!nian yoyoyo", &test_channel, &test_user,
                 Some(Err(InvalidCommand(test_channel.clone(), "!nian yoyoyo".into(),
-                                        InvalidReason::WrongNoOfParameters)))),
+                                        InvalidCommandReason::WrongNoOfParameters)))),
 
             CommandParserTest::new(
                 "Help with too many parameters",
                 "!helpnian yoyoyo", &test_channel, &test_user,
                 Some(Err(InvalidCommand(test_channel.clone(), "!helpnian yoyoyo".into(),
-                                        InvalidReason::WrongNoOfParameters)))),
+                                        InvalidCommandReason::WrongNoOfParameters)))),
 
         ];
 

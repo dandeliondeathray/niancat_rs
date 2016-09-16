@@ -14,31 +14,37 @@ pub type WordHash = String;
 pub enum Reason {
     NotInDictionary,
     NotNineCharacters,
-    NonMatchingWord(TooMany, TooFew),
+    NonMatchingWord(Puzzle, TooMany, TooFew),
 }
 
 #[derive(Eq, PartialEq, Debug)]
-pub enum InvalidReason {
+pub enum InvalidPuzzleReason {
+    NotInDictionary,
+    NotNineCharacters,
+}
+
+#[derive(Eq, PartialEq, Debug)]
+pub enum InvalidCommandReason {
     UnknownCommand,
     WrongNoOfParameters,
 }
 
 #[derive(Eq, PartialEq, Debug)]
 pub enum Response {
-    GetCommand(Channel, Puzzle),
+    GetPuzzle(Channel, Puzzle, u32),
     NoPuzzleSet(Channel),
-    SetPuzzle(Channel, Puzzle),
-    InvalidPuzzle(Channel, Puzzle, Reason),
+    SetPuzzle(Channel, Puzzle, u32),
+    InvalidPuzzle(Channel, Puzzle, InvalidPuzzleReason),
     CorrectSolution(Channel, Word),
     Notification(Name, WordHash),
     IncorrectSolution(Channel, Word, Reason),
     Help(Channel),
-    DualResponse(Box<Response>, Box<Response>),
-    TripleResponse(Box<Response>, Box<Response>, Box<Response>),
+    Dual(Box<Response>, Box<Response>),
+    Triple(Box<Response>, Box<Response>, Box<Response>),
 }
 
 #[derive(PartialEq, Eq, Debug)]
-pub struct InvalidCommand(pub Channel, pub String, pub InvalidReason);
+pub struct InvalidCommand(pub Channel, pub String, pub InvalidCommandReason);
 
 pub trait Respond {
     fn serialize(&self, r: &Response) -> Vec<SlackResponse>;
@@ -48,29 +54,119 @@ struct SlackResponder {
     main_channel: Channel,
 }
 
+pub fn break_puzzle(&Puzzle(ref p): &Puzzle) -> String {
+    if !is_right_length(&p) {
+        panic!("Can't break apart puzzle, because {} is not the right length!", p);
+    }
+
+    let mut it = p.chars();
+    let a = p.chars().take(3).collect::<String>();
+    let b = p.chars().skip(3).take(3).collect::<String>();
+    let c = p.chars().skip(6).take(3).collect::<String>();
+    let puzzle = vec![a, b, c].join(" ");
+    puzzle
+}
+
+const HELP_TEXT: &'static str = r#"
+"Dagens nia" är ett ordpussel från Svenska Dagbladet. Varje dag får man nio bokstäver, och ska hitta
+vilket svenskt ord man kan konstruera med hjälp av dessa bokstäver.
+Boten 'niancat' hjälper dig att lösa nian genom att kontrollera om ord finns med i SAOL eller inte,
+och att bokstäverna matchar dagens nia. Om du skriver in ett lösningsförslag i ett privat-meddelande
+till boten så kommer den säga till om ordet är korrekt, och i sådana fall automatiskt notifiera
+kanalen om att du hittat en lösning.
+
+Innan du har löst dagens nia är det bra om du inte skriver in lösningsförslag i kanalen, då det är
+möjligt att du är nära utan att veta om det, och därmed i praktiken löser den åt andra. När du löst
+den kan du skriva lösningsförslag i kanalen, men håll dig gärna till ord som inte är nära den
+riktiga lösningen.
+
+Kommandon:
+    !setnian <pussel>   Sätt nian.
+    !nian               Visa nian.
+    !unsolution <text>  Sätt en olösning, att visas när nästa nian sätts.
+    !unsolutions        Visa alla mina olösning. Svar, om det finns, visas i en privat kanal.
+    !helpnian           Visa denna hjälptext.
+
+Alla dessa kommandon kan man köra både i kanalen och i privat-meddelande till tiancat.
+"#;
+
 impl Respond for SlackResponder {
     fn serialize(&self, r: &Response) -> Vec<SlackResponse> {
-        match r {
-            &Response::Notification(Name(ref name), ref hash) => vec![
+        match *r {
+            Response::NoPuzzleSet(ref channel) => vec![
+                SlackResponse(channel.clone(),
+                    format!("Nian är inte satt!"))
+            ],
+
+            Response::GetPuzzle(ref channel, ref puzzle, 1) => vec![
+                    SlackResponse(channel.clone(), format!("{}",
+                                  break_puzzle(puzzle)))
+            ],
+
+            Response::GetPuzzle(ref channel, ref puzzle, n) => vec![
+                    SlackResponse(channel.clone(),
+                        format!("{}.\nDet finns {} lösningar.",
+                                break_puzzle(puzzle), n))
+            ],
+
+            Response::SetPuzzle(ref channel, ref puzzle, 1) => vec![
+                    SlackResponse(channel.clone(), format!("Dagens nia är satt till {}.",
+                                  break_puzzle(puzzle)))
+            ],
+
+            Response::SetPuzzle(ref channel, ref puzzle, n) => vec![
+                    SlackResponse(channel.clone(),
+                        format!("Dagens nia är satt till {}.\nDet finns {} lösningar.",
+                                break_puzzle(puzzle), n))
+            ],
+
+            Response::InvalidPuzzle(ref channel, Puzzle(ref puzzle), InvalidPuzzleReason::NotNineCharacters) => vec![
+                SlackResponse(channel.clone(),
+                    format!("Ogiltig nian! {} är inte nio tecken långt.", puzzle))
+            ],
+
+            Response::InvalidPuzzle(ref channel, Puzzle(ref puzzle), InvalidPuzzleReason::NotInDictionary) => vec![
+                SlackResponse(channel.clone(),
+                    format!("Ogiltig nian! {} finns inte med i SAOL.", puzzle))
+            ],
+
+            Response::CorrectSolution(ref channel, Word(ref word)) => vec![
+                SlackResponse(channel.clone(),
+                    format!("Ordet {} är korrekt!", word))
+            ],
+
+            Response::Notification(Name(ref name), ref hash) => vec![
                 SlackResponse(self.main_channel.clone(),
                     format!("{} löste nian: {}", name, hash))
             ],
 
-            &Response::IncorrectSolution(ref channel, Word(ref w), Reason::NotInDictionary) => vec![
+            Response::IncorrectSolution(ref channel, Word(ref w), Reason::NotInDictionary) => vec![
                 SlackResponse(channel.clone(),
                     format!("Ordet {} finns inte med i SAOL.", w))
             ],
 
-            &Response::IncorrectSolution(ref channel, Word(ref w), Reason::NotNineCharacters) => vec![
+            Response::IncorrectSolution(ref channel, Word(ref w), Reason::NotNineCharacters) => vec![
                 SlackResponse(channel.clone(),
                     format!("Ordet {} är inte nio tecken långt.", w))
             ],
 
-            &Response::IncorrectSolution(ref channel, Word(ref w),
-                                         Reason::NonMatchingWord(ref too_many, ref too_few)) => vec![
+            Response::IncorrectSolution(ref channel, Word(ref w),
+                                         Reason::NonMatchingWord(Puzzle(ref puzzle), ref too_many, ref too_few)) => vec![
                 SlackResponse(channel.clone(),
-                    format!("Ordet {} matchar inte dagens nia. För många {}, för få {}.", w, too_many, too_few))
+                    format!("Ordet {} matchar inte dagens nia {}. För många {}, för få {}.", w, puzzle, too_many, too_few))
             ],
+
+            Response::Help(ref channel) => vec![
+                SlackResponse(channel.clone(), format!("{}", HELP_TEXT))
+            ],
+
+            Response::Dual(ref first, ref second) => {
+                let mut f = self.serialize(&first);
+                let mut s = self.serialize(&second);
+
+                f.append(&mut s);
+                f
+            }
 
             _ => vec![SlackResponse(Channel("XXXXXX".into()), "".into())],
         }
@@ -84,6 +180,18 @@ pub fn new_responder(main_channel: &Channel) -> Box<Respond> {
 mod tests {
     use super::*;
     use types::*;
+
+    #[test]
+    #[should_panic]
+    fn test_break_puzzle_panics() {
+        break_puzzle(&Puzzle("ABC".into()));
+    }
+
+    #[test]
+    fn test_break_puzzle() {
+        assert_eq!(break_puzzle(&Puzzle("ABCDEFGHI".into())), "ABC DEF GHI".to_string());
+        assert_eq!(break_puzzle(&Puzzle("ABÅÄÖCDEF".into())), "ABÅ ÄÖC DEF".to_string());
+    }
 
     struct TestEvent {
         channel:       Channel,
@@ -126,6 +234,160 @@ mod tests {
                 ],
             },
 
+            ResponderTest {
+                description: "Invalid puzzle",
+                response: Response::InvalidPuzzle(Channel("C0".into()), Puzzle("PUZZLE".into()),
+                                                  InvalidPuzzleReason::NotNineCharacters),
+                expected: vec![
+                    TestEvent {
+                        channel: Channel("C0".into()),
+                        has_texts: vec!["PUZZLE"],
+                        has_not_texts: vec![],
+                    }
+                ],
+            },
+
+            ResponderTest {
+                description: "No puzzle set",
+                response: Response::NoPuzzleSet(Channel("C0".into())),
+                expected: vec![
+                    TestEvent {
+                        channel: Channel("C0".into()),
+                        has_texts: vec!["inte", "satt"],
+                        has_not_texts: vec![]
+                    }
+                ]
+            },
+
+            ResponderTest {
+                description: "Set puzzle response, many solutions",
+                response: Response::SetPuzzle(Channel("C0".into()), Puzzle("PUZZLEABC".into()), 17),
+                expected: vec![
+                    TestEvent {
+                        channel: Channel("C0".into()),
+                        has_texts: vec!["PUZ ZLE ABC", "17"],
+                        has_not_texts: vec![],
+                    }
+                ]
+            },
+
+            ResponderTest {
+                description: "Set puzzle response, one solution",
+                response: Response::SetPuzzle(Channel("C0".into()), Puzzle("PUZZLEABC".into()), 1),
+                expected: vec![
+                    TestEvent {
+                        channel: Channel("C0".into()),
+                        has_texts: vec!["PUZ ZLE ABC"],
+                        has_not_texts: vec!["1"]
+                    }
+                ]
+            },
+
+            ResponderTest {
+                description: "Correct solution response to user",
+                response: Response::CorrectSolution(Channel("D0".into()), Word("FOO".into())),
+                expected: vec![
+                    TestEvent {
+                        channel: Channel("D0".into()),
+                        has_texts: vec!["FOO", "korrekt"],
+                        has_not_texts: vec![],
+                    }
+                ]
+            },
+
+           ResponderTest {
+                description: "Get puzzle, many solutions",
+                response: Response::GetPuzzle(Channel("C0".into()), Puzzle("PUZZLEABC".into()), 17),
+                expected: vec![
+                    TestEvent {
+                        channel: Channel("C0".into()),
+                        has_texts: vec!["PUZ ZLE ABC", "17"],
+                        has_not_texts: vec![],
+                    }
+                ]
+            },
+
+            ResponderTest {
+                description: "Get puzzle, one solution",
+                response: Response::GetPuzzle(Channel("C0".into()), Puzzle("PUZZLEABC".into()), 1),
+                expected: vec![
+                    TestEvent {
+                        channel: Channel("C0".into()),
+                        has_texts: vec!["PUZ ZLE ABC"],
+                        has_not_texts: vec!["1"],
+                    }
+                ]
+            },
+
+            ResponderTest {
+                description: "Composite responses",
+                response: Response::Dual(
+                    Box::new(Response::CorrectSolution(Channel("D0".into()), Word("FOO".into()))),
+                    Box::new(Response::Notification(Name("erike".into()), "abcdef".into()))),
+                expected: vec![
+                    TestEvent {
+                        channel: Channel("D0".into()),
+                        has_texts: vec!["FOO"],
+                        has_not_texts: vec![],
+                    },
+                    TestEvent {
+                        channel: Channel("C0123".into()),
+                        has_texts: vec!["erike", "abcdef"],
+                        has_not_texts: vec![],
+                    },
+                ]
+            },
+
+//            ResponderTest {
+//                description: "Invalid command",
+//                response: (Channel("C0".into()), InvalidCommandReason::UnknownCommand),
+//                expected: vec![
+//                    TestEvent {
+//                        channel: Channel("C0".into()),
+//                        has_texts: vec!["känt"],
+//                        has_not_texts: vec![],
+//                    }
+//                ]
+//            },
+
+            ResponderTest {
+                description: "Help command",
+                response: Response::Help(Channel("C0".into())),
+                expected: vec![
+                    TestEvent {
+                        channel: Channel("C0".into()),
+                        has_texts: vec!["!setnian", "!nian", "!helpnian"],
+                        has_not_texts: vec![],
+                    }
+                ]
+            },
+
+            ResponderTest {
+                description: "Incorrect solution, because it's not nine characters",
+                response: Response::IncorrectSolution(Channel("D0".into()), Word("FOO".into()), Reason::NotNineCharacters),
+                expected: vec![
+                    TestEvent {
+                        channel: Channel("D0".into()),
+                        has_texts: vec!["FOO", "inte nio tecken"],
+                        has_not_texts: vec![],
+                    }
+                ]
+            },
+
+            ResponderTest {
+                description: "Incorrect solution, because it doesn't match todays puzzle",
+                response: Response::IncorrectSolution(
+                    Channel("D0".into()),
+                    Word("FOO".into()),
+                    Reason::NonMatchingWord(Puzzle("PUSSELDEF".into()), "ABC".into(), "DEF".into())),
+                expected: vec![
+                    TestEvent {
+                        channel: Channel("D0".into()),
+                        has_texts: vec!["FOO", "PUSSELDEF", "matchar inte", "många ABC", "få DEF"],
+                        has_not_texts: vec![],
+                    }
+                ]
+            },
         ];
 
         for t in tests {
@@ -148,128 +410,73 @@ mod tests {
         }
     }
 
-//    ResponderTest(
-//        "Correct solution response to user",
-//        CorrectSolutionResponse(ChannelId("D0"), Word("FOO")),
-//        [TestEvent(ChannelId("D0"), "FOO", "korrekt")]),
-//
-//    ResponderTest(
-//        "Unknown user",
-//        UnknownUserSolutionResponse(UserId("U0")),
-//        [TestEvent(main_channel_id, "<@U0>", "känd")]),
-//
-//    ResponderTest(
-//        "Get puzzle, many solutions",
-//        GetPuzzleResponse(ChannelId("C0"), Puzzle("PUZZLEABC"), 17),
-//        [TestEvent(ChannelId("C0"), "PUZ ZLE ABC", "17")]),
-//
-//    ResponderTest(
-//        "Get puzzle, one solution",
-//        GetPuzzleResponse(ChannelId("C0"), Puzzle("PUZZLEABC"), 1),
-//        [TestEvent(ChannelId("C0"), "PUZ ZLE ABC"; has_not=["1"])]),
-//
-//    ResponderTest(
-//        "No puzzle set",
-//        NoPuzzleSetResponse(ChannelId("C0")),
-//        [TestEvent(ChannelId("C0"), "inte", "satt")]),
-//
-//    ResponderTest(
-//        "Set puzzle response, many solutions",
-//        SetPuzzleResponse(ChannelId("C0"), Puzzle("PUZZLEABC"), 17),
-//        [TestEvent(ChannelId("C0"), "PUZ ZLE ABC", "17")]),
-//
-//    ResponderTest(
-//        "Set puzzle response, one solution",
-//        SetPuzzleResponse(ChannelId("C0"), Puzzle("PUZZLEABC"), 1),
-//        [TestEvent(ChannelId("C0"), "PUZ ZLE ABC"; has_not=["1"])]),
-//
-//    ResponderTest(
-//        "Invalid puzzle",
-//        InvalidPuzzleResponse(ChannelId("C0"), Puzzle("PUZZLE")),
-//        [TestEvent(ChannelId("C0"), "PUZZLE")]),
-//
-//    ResponderTest(
-//        "Ignore events",
-//        IgnoredEventResponse(ChannelId("C0"), utf8("Some text")),
-//        []),
-//
-//    ResponderTest(
-//        "Composite responses",
-//        CompositeResponse(
-//            CorrectSolutionResponse(ChannelId("D0"), Word("FOO")),
-//            Response::Notification(SlackName("erike"), utf8("abcdef"))),
-//        [TestEvent(ChannelId("D0"), "FOO"),
-//         TestEvent(ChannelId("C0123"), "erike", "abcdef")]),
-//
-//    ResponderTest(
-//        "Invalid command",
-//        InvalidCommandResponse(ChannelId("C0"), :unknown),
-//        [TestEvent(ChannelId("C0"), "känt")]),
-//
-//    ResponderTest(
-//        "Help command",
-//        HelpResponse(ChannelId("C0")),
-//        [TestEvent(ChannelId("C0"), "!setnian", "!nian", "!helpnian")]),
-//
-//    ResponderTest(
-//        "Incorrect solution, because it's not nine characters",
-//        IncorrectSolutionResponse(ChannelId("D0"), Word("FOO"), :not_nine_characters),
-//        [TestEvent(ChannelId("D0"), "FOO", "inte nio tecken")]),
-//
-//    ResponderTest(
+
+
+
+//    ResponderTest {
 //        "Incorrect solution, because it doesn't match todays puzzle",
 //        NonMatchingWordResponse(
-//            ChannelId("D0"), Word("FOO"), Puzzle("BAR"), utf8("ABC"), utf8("DEF")),
-//        [TestEvent(ChannelId("D0"), "FOO", "BAR", "matchar inte", "många ABC", "få DEF")]),
-//
-//    ResponderTest(
-//        "Incorrect solution, because it doesn't match todays puzzle",
-//        NonMatchingWordResponse(
-//            ChannelId("D0"), Word("FOO"), Puzzle("BAR"), utf8("ABC"), utf8("")),
-//        [TestEvent(ChannelId("D0"), "FOO", "matchar inte", "många ABC";
+//            Channel("D0"), Word("FOO"), Puzzle("BAR"), utf8("ABC"), utf8("")),
+//        expected: vec![
+//            TestEvent {
+//                channel: Channel("D0"), "FOO", "matchar inte", "många ABC";
 //            has_not=["få"])]),
 //
-//    ResponderTest(
+//    ResponderTest {
 //        "Incorrect solution, because it doesn't match todays puzzle",
 //        NonMatchingWordResponse(
-//            ChannelId("D0"), Word("FOO"), Puzzle("BAR"), utf8(""), utf8("DEF")),
-//        [TestEvent(ChannelId("D0"), "FOO", "matchar inte", "få DEF";
+//            Channel("D0"), Word("FOO"), Puzzle("BAR"), utf8(""), utf8("DEF")),
+//        expected: vec![
+//            TestEvent {
+//                channel: Channel("D0"), "FOO", "matchar inte", "få DEF";
 //            has_not=["många"])]),
 //
-//    ResponderTest(
+//    ResponderTest {
 //        "Incorrect solution, for unknown reason",
-//        IncorrectSolutionResponse(ChannelId("D0"), Word("FOO"), :other_reason),
-//        [TestEvent(ChannelId("D0"), "FOO", "oklara skäl")]),
+//        IncorrectSolutionResponse(Channel("D0"), Word("FOO"), :other_reason),
+//        expected: vec![
+//            TestEvent {
+//                channel: Channel("D0"), "FOO", "oklara skäl")]),
 //
-//    ResponderTest(
+//    ResponderTest {
 //        "Set an unsolution",
-//        SetUnsolutionResponse(ChannelId("D0"), utf8("Hello")),
-//        [TestEvent(ChannelId("D0"), "Hello", "Olösning")]),
+//        SetUnsolutionResponse(Channel("D0"), utf8("Hello")),
+//        expected: vec![
+//            TestEvent {
+//                channel: Channel("D0"), "Hello", "Olösning")]),
 //
-//    ResponderTest(
+//    ResponderTest {
 //        "Get an unsolution",
-//        GetUnsolutionsResponse(ChannelId("D0"), [utf8("Hello"), utf8("world")]),
-//        [TestEvent(ChannelId("D0"), "Hello", "world")]),
+//        GetUnsolutionsResponse(Channel("D0"), [utf8("Hello"), utf8("world")]),
+//        expected: vec![
+//            TestEvent {
+//                channel: Channel("D0"), "Hello", "world")]),
 //
-//    ResponderTest(
+//    ResponderTest {
 //        "Notification response",
 //        UnsolutionNotificationResponse(Dict{UserId, UnsolutionList}(
 //            UserId("U0") => [utf8("FOO")],
 //            UserId("U1") => [utf8("BAR"), utf8("BAZ")])),
-//        [TestEvent(main_channel_id, "<@U0>", "FOO", "<@U1>", "BAR", "BAZ")]),
+//        expected: vec![
+//            TestEvent {
+//                channel: main_channel_id, "<@U0>", "FOO", "<@U1>", "BAR", "BAZ")]),
 //
-//    ResponderTest(
+//    ResponderTest {
 //        "Previous solutions response",
 //        PreviousSolutionsResponse(Dict{Word, Vector{UserId}}(
 //            Word("FOO") => [UserId("U0"), UserId("U1")],
 //            Word("BAR") => [])),
-//        [TestEvent(main_channel_id, "<@U0>", "FOO", "<@U1>", "BAR", "Gårdagens lösningar")]),
+//        expected: vec![
+//            TestEvent {
+//                channel: main_channel_id, "<@U0>", "FOO", "<@U1>", "BAR", "Gårdagens lösningar")]),
 //
-//    ResponderTest(
+//    ResponderTest {
 //        "Previous solutions response, only one solution",
 //        PreviousSolutionsResponse(Dict{Word, Vector{UserId}}(
 //            Word("FOO") => [UserId("U0"), UserId("U1")])),
-//        [TestEvent(main_channel_id, "<@U0>", "FOO", "<@U1>", "Gårdagens lösning";
+//        expected: vec![
+//           TestEvent {
+//               channel: main_channel_id, "<@U0>", "FOO", "<@U1>", "Gårdagens lösning";
 //            has_not=["lösningar"])])
 //]
 }

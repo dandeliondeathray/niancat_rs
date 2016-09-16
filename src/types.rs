@@ -51,6 +51,10 @@ impl Channel {
     }
 }
 
+pub fn is_right_length(w: &String) -> bool {
+    return w.chars().collect::<Vec<char>>().len() == 9
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
