@@ -39,7 +39,6 @@ impl Dictionary {
         let mut solutions = MultiMap::new();
         for &Word(ref w) in &words {
             let p = sort_word(w);
-            println!("Puzzle: {}, Word {}", p, w);
             solutions.insert(Puzzle(p), Word(w.clone()));
         }
 

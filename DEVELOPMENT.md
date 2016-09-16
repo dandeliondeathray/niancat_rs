@@ -4,8 +4,7 @@ Development notes
 Missing modules
 ---------------
 
-- Serializing responses
-- Slack handler (which ties together the above)
+- Slack handler (which ties together everything)
 
 Missing features
 ----------------
@@ -60,14 +59,16 @@ Slack handler
 This will be a relatively simple part to implement, but the testing would really need some mock
 objects. Unfortunately there are no mature mock libraries for Rust that I'm aware.
 
+2016-09-16
+----------
+Implemented responses.
+
 2016-09-14
 ----------
 Broke the bot into a main module and a library module, so integration testing can be done.
 
 Implemented the initialization function. Still missing is the actual use of it in the main module,
 as well as an adaptor struct for adapting the initialization to the Slack crate.
-
-
 
 2016-09-13
 ----------
