@@ -40,12 +40,6 @@ pub enum Response {
 #[derive(PartialEq, Eq, Debug)]
 pub struct InvalidCommand(pub Channel, pub String, pub InvalidReason);
 
-impl fmt::Display for Response {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "")
-    }
-}
-
 pub trait Respond {
     fn serialize(&self, r: &Response) -> Vec<SlackResponse>;
 }
@@ -56,7 +50,30 @@ struct SlackResponder {
 
 impl Respond for SlackResponder {
     fn serialize(&self, r: &Response) -> Vec<SlackResponse> {
-        vec![SlackResponse(Channel("C0".into()), "".into())]
+        match r {
+            &Response::Notification(Name(ref name), ref hash) => vec![
+                SlackResponse(self.main_channel.clone(),
+                    format!("{} löste nian: {}", name, hash))
+            ],
+
+            &Response::IncorrectSolution(ref channel, Word(ref w), Reason::NotInDictionary) => vec![
+                SlackResponse(channel.clone(),
+                    format!("Ordet {} finns inte med i SAOL.", w))
+            ],
+
+            &Response::IncorrectSolution(ref channel, Word(ref w), Reason::NotNineCharacters) => vec![
+                SlackResponse(channel.clone(),
+                    format!("Ordet {} är inte nio tecken långt.", w))
+            ],
+
+            &Response::IncorrectSolution(ref channel, Word(ref w),
+                                         Reason::NonMatchingWord(ref too_many, ref too_few)) => vec![
+                SlackResponse(channel.clone(),
+                    format!("Ordet {} matchar inte dagens nia. För många {}, för få {}.", w, too_many, too_few))
+            ],
+
+            _ => vec![SlackResponse(Channel("XXXXXX".into()), "".into())],
+        }
     }
 }
 
@@ -95,6 +112,20 @@ mod tests {
                     },
                 ],
             },
+
+            ResponderTest {
+                description: "Incorrect solution response to user",
+                response: Response::IncorrectSolution(Channel("D0".into()), Word("FOO".into()),
+                                                      Reason::NotInDictionary),
+                expected: vec![
+                    TestEvent {
+                        channel: Channel("D0".into()),
+                        has_texts: vec!["FOO", "inte"],
+                        has_not_texts: vec![],
+                    }
+                ],
+            },
+
         ];
 
         for t in tests {
@@ -104,7 +135,7 @@ mod tests {
             assert_eq!(slack_responses.len(), t.expected.len(), "{}", t.description);
 
             for (expected, actual) in t.expected.iter().zip(slack_responses) {
-                assert_eq!(expected.channel, actual.0);
+                assert_eq!(expected.channel, actual.0, "{}, wrong channel", t.description);
 
                 for s in &expected.has_texts {
                     assert!(actual.1.contains(s), "Expected substring {}, in actual string {}", s, actual.1);
@@ -117,17 +148,6 @@ mod tests {
         }
     }
 
-//responder_tests = [
-//    ResponderTest(
-//        "Solution notification response to main channel",
-//        Response::Notification(SlackName("erike"), utf8("abcdef")),
-//        [TestEvent(main_channel_id, "erike", "abcdef")]),
-//
-//    ResponderTest(
-//        "Incorrect solution response to user",
-//        IncorrectSolutionResponse(ChannelId("D0"), Word("FOO"), :not_in_dictionary),
-//        [TestEvent(ChannelId("D0"), "FOO", "inte")]),
-//
 //    ResponderTest(
 //        "Correct solution response to user",
 //        CorrectSolutionResponse(ChannelId("D0"), Word("FOO")),
