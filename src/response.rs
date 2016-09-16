@@ -48,6 +48,7 @@ pub struct InvalidCommand(pub Channel, pub String, pub InvalidCommandReason);
 
 pub trait Respond {
     fn serialize(&self, r: &Response) -> Vec<SlackResponse>;
+    fn serialize_invalid_command(&self, r: &InvalidCommand) -> Vec<SlackResponse>;
 }
 
 struct SlackResponder {
@@ -170,6 +171,19 @@ impl Respond for SlackResponder {
 
             _ => vec![SlackResponse(Channel("XXXXXX".into()), "".into())],
         }
+    }
+
+    fn serialize_invalid_command(&self, &InvalidCommand(ref channel,
+                                                        ref text,
+                                                        ref reason): &InvalidCommand) -> Vec<SlackResponse> {
+        let reason_string = match *reason {
+            InvalidCommandReason::UnknownCommand => "okänt kommando!",
+            InvalidCommandReason::WrongNoOfParameters => "fel antal parametrar!"
+        };
+        vec![
+            SlackResponse(channel.clone(),
+                          format!("Ogiltigt kommando '{}'. Orsak: {}", text, reason_string))
+        ]
     }
 }
 
@@ -338,18 +352,6 @@ mod tests {
                 ]
             },
 
-//            ResponderTest {
-//                description: "Invalid command",
-//                response: (Channel("C0".into()), InvalidCommandReason::UnknownCommand),
-//                expected: vec![
-//                    TestEvent {
-//                        channel: Channel("C0".into()),
-//                        has_texts: vec!["känt"],
-//                        has_not_texts: vec![],
-//                    }
-//                ]
-//            },
-
             ResponderTest {
                 description: "Help command",
                 response: Response::Help(Channel("C0".into())),
@@ -410,7 +412,36 @@ mod tests {
         }
     }
 
+    #[test]
+    fn invalid_command_test() {
+        let expected = vec![
+            TestEvent {
+                channel: Channel("C0".into()),
+                has_texts: vec!["känt"],
+                has_not_texts: vec![],
+            }
+        ];
 
+        let main_channel_id = Channel("C0123".into());
+        let responder = new_responder(&main_channel_id);
+
+        let r = InvalidCommand(Channel("C0".into()), "!nosuchcommand".into(), InvalidCommandReason::UnknownCommand);
+        let slack_responses = responder.serialize_invalid_command(&r);
+
+        assert_eq!(slack_responses.len(), expected.len(), "{}", "Unexpected response length for invalid command");
+
+        for (expected, actual) in expected.iter().zip(slack_responses) {
+            assert_eq!(expected.channel, actual.0, "{}, wrong channel", "Invalid command");
+
+            for s in &expected.has_texts {
+                assert!(actual.1.contains(s), "Expected substring {}, in actual string {}", s, actual.1);
+            }
+
+            for s in &expected.has_not_texts {
+                assert!(!actual.1.contains(s), "Did not expect substring {}, in actual string {}", s, actual.1);
+            }
+        }
+    }
 
 
 
