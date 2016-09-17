@@ -55,7 +55,7 @@ pub fn parse_command(chan: &Channel, name: &Name, text: &String) -> CommandResul
     let command_name = parts[0];
     let args: Vec<&str> = parts[1..].iter().cloned().collect();
     if command_name.starts_with('!') {
-        let mut invalidReason: Option<InvalidCommandReason> = None;
+        let mut invalid_reason: Option<InvalidCommandReason> = None;
         // If the command name matches, but the no of parameters don't match, then it will go on to
         // the next `CommandParser`. However, we want to respond to it as an invalid command, with
         // the wrong number of parameters.
@@ -64,12 +64,12 @@ pub fn parse_command(chan: &Channel, name: &Name, text: &String) -> CommandResul
                 if command.matches_args(args.len()) {
                     return Some(Ok((command.make)(chan.clone(), &args)));
                 } else {
-                    invalidReason = Some(InvalidCommandReason::WrongNoOfParameters);
+                    invalid_reason = Some(InvalidCommandReason::WrongNoOfParameters);
                 }
             }
         }
 
-        if let Some(reason) = invalidReason {
+        if let Some(reason) = invalid_reason {
             return Some(Err(InvalidCommand(chan.clone(), text.clone(), reason)));
         }
 
@@ -86,6 +86,7 @@ pub fn parse_command(chan: &Channel, name: &Name, text: &String) -> CommandResul
     None
 }
 
+#[cfg(test)]
 mod tests {
     use super::*;
     use types::*;

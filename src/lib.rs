@@ -18,7 +18,6 @@ mod parser;
 mod response;
 
 use response::{Respond, new_responder, SlackResponse};
-use dictionary::CheckWord;
 use types::{Channel, Name};
 
 pub struct NiancatHandler<'a> {

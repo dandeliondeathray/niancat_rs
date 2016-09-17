@@ -1,8 +1,5 @@
 use types::*;
 
-use std::fmt;
-use std::io;
-
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub struct SlackResponse(pub Channel, pub String);
 
@@ -60,7 +57,6 @@ pub fn break_puzzle(&Puzzle(ref p): &Puzzle) -> String {
         panic!("Can't break apart puzzle, because {} is not the right length!", p);
     }
 
-    let mut it = p.chars();
     let a = p.chars().take(3).collect::<String>();
     let b = p.chars().skip(3).take(3).collect::<String>();
     let c = p.chars().skip(6).take(3).collect::<String>();
@@ -191,6 +187,7 @@ pub fn new_responder(main_channel: &Channel) -> Box<Respond> {
     Box::new(SlackResponder { main_channel: main_channel.clone() })
 }
 
+#[cfg(test)]
 mod tests {
     use super::*;
     use types::*;
