@@ -23,7 +23,23 @@ fn main() {
         Ok(x) => x,
     };
 
+
+
     let mut handler = NiancatHandler::new(&dictionary, channel_id);
+
+    // Get an initial list of all users.
+    match slack_list_channels.list_users() {
+        Ok(users_list) => {
+            for u in users_list.members {
+                handler.update_user(&u);
+            }
+        },
+
+        Err(e) => {
+            panic!("Could not list users! Reason: {:?}", e);
+        }
+    }
+
 
     let mut client = slack::RtmClient::new(&api_key);
     let r = client.login_and_run::<NiancatHandler>(&mut handler);
