@@ -68,20 +68,21 @@ fn set_puzzle(state: &mut Niancat, channel: &Channel, puzzle: &Puzzle) -> Respon
 }
 
 fn check_solution(state: &mut Niancat, channel: &Channel, name: &Name, word: &Word) -> Response {
+    let normalized_word = word.normalize();
     if let Some(ref puzzle) = state.puzzle {
-        if !is_right_length(&word.0) {
+        if !is_right_length(&normalized_word.0) {
             return Response::IncorrectSolution(channel.clone(), word.clone(),
                 Reason::NotNineCharacters);
         }
 
-        if let Some((too_few, too_many)) = non_match(&puzzle, &word) {
+        if let Some((too_few, too_many)) = non_match(&puzzle, &normalized_word) {
             let reason = Reason::NonMatchingWord(puzzle.clone(), too_many, too_few);
             return Response::IncorrectSolution(channel.clone(), word.clone(),
                 reason)
         }
 
         if state.dictionary.is_solution(&word) {
-            let hash = solution_hash(&word.normalize(), &name);
+            let hash = solution_hash(&normalized_word, &name);
             let correct_solution = Response::CorrectSolution(channel.clone(),
                 word.clone());
             let notification = Response::Notification(name.clone(), hash);
@@ -348,7 +349,16 @@ mod tests {
                 command: Command::CheckSolution(chan.clone(), name1.clone(), word2.clone()),
                 expected: Response::Dual(
                     Box::new(Response::CorrectSolution(chan.clone(), word2.clone())),
-                    Box::new(Response::Notification(name1.clone(), expected_hash)))
+                    Box::new(Response::Notification(name1.clone(), expected_hash.clone())))
+            },
+
+            CommandTest {
+                description: "Solving the puzzle",
+                state: Niancat::new_with_puzzle(&DEFAULT_CHECKWORD, Puzzle("AGALLTJUT".into())),
+                command: Command::CheckSolution(chan.clone(), name1.clone(), Word("GALL TJUT A".into())),
+                expected: Response::Dual(
+                    Box::new(Response::CorrectSolution(chan.clone(), Word("GALL TJUT A".into()))),
+                    Box::new(Response::Notification(name1.clone(), expected_hash.clone())))
             },
 
             CommandTest {

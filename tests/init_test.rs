@@ -93,7 +93,7 @@ fn init_handler_test() {
     ];
 
     let fake_list_channels = FakeListChannels { v: Some(ListResponse { channels: chans }) };
-    let result = niancat::initialize(fake_list_channels, &"tests/test_dictionary.txt".into(), &"konsulatet".into());
+    let result = niancat::initialize(&fake_list_channels, &"tests/test_dictionary.txt".into(), &"konsulatet".into());
 
     match result {
         Err(s) => assert!(false, "Initialization failed, because: {}", s),
@@ -114,7 +114,7 @@ fn init_handler_test() {
 #[test]
 fn failed_channel_list_init_test() {
     let fake_list_channels = FakeListChannels { v: None };
-    let result = niancat::initialize(fake_list_channels, &"tests/test_dictionary.txt".into(), &"konsulatet".into());
+    let result = niancat::initialize(&fake_list_channels, &"tests/test_dictionary.txt".into(), &"konsulatet".into());
 
     match result {
         Err(_) => {},
@@ -146,7 +146,7 @@ fn failed_dictionary_init_test() {
     ];
 
     let fake_list_channels = FakeListChannels { v: Some(ListResponse { channels: chans }) };
-    let result = niancat::initialize(fake_list_channels, &"tests/no_such_dictionary.txt".into(), &"konsulatet".into());
+    let result = niancat::initialize(&fake_list_channels, &"tests/no_such_dictionary.txt".into(), &"konsulatet".into());
 
     match result {
         Err(_) => {},
