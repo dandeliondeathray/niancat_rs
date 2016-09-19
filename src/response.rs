@@ -28,9 +28,9 @@ pub enum InvalidCommandReason {
 
 #[derive(Eq, PartialEq, Debug)]
 pub enum Response {
-    GetPuzzle(Channel, Puzzle, u32),
+    GetPuzzle(Channel, Puzzle, usize),
     NoPuzzleSet(Channel),
-    SetPuzzle(Channel, Puzzle, u32),
+    SetPuzzle(Channel, Puzzle, usize),
     InvalidPuzzle(Channel, Puzzle, InvalidPuzzleReason),
     CorrectSolution(Channel, Word),
     Notification(Name, WordHash),

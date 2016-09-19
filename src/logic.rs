@@ -50,7 +50,7 @@ pub fn apply(command: &Command, state: &mut Niancat) -> Response {
 
 fn get_puzzle(state: &mut Niancat, channel: &Channel) -> Response {
     match state.puzzle {
-        Some(ref puzzle) => Response::GetPuzzle(channel.clone(), puzzle.clone(), 1),
+        Some(ref puzzle) => Response::GetPuzzle(channel.clone(), puzzle.clone(), state.dictionary.no_of_solutions(puzzle)),
         None => Response::NoPuzzleSet(channel.clone())
     }
 }
@@ -61,7 +61,7 @@ fn set_puzzle(state: &mut Niancat, channel: &Channel, puzzle: &Puzzle) -> Respon
     }
     if state.dictionary.has_solution(&puzzle) {
         state.puzzle = Some(puzzle.clone());
-        Response::SetPuzzle(channel.clone(), puzzle.clone(), 1)
+        Response::SetPuzzle(channel.clone(), puzzle.clone(), state.dictionary.no_of_solutions(&puzzle))
     } else {
         Response::InvalidPuzzle(channel.clone(), puzzle.clone(), InvalidPuzzleReason::NotInDictionary)
     }
@@ -213,6 +213,13 @@ mod tests {
         find_solutions_v: None,
         has_solution_v: false };
 
+    static MULTIPLE_SOLUTIONS_CHECKWORD: FakeCheckWord = FakeCheckWord {
+        is_solution_v: true,
+        no_of_solutions_v: 7,
+        find_solutions_v: None,
+        has_solution_v: true };
+
+
     #[test]
     fn solution_hash_test() {
         for &(word, nick, expected) in HASH_TESTS {
@@ -276,6 +283,18 @@ mod tests {
         assert!(state.puzzle == None);
     }
 
+    #[test]
+    fn set_puzzle_multiple_solutions() {
+        let channel = Channel("channel".into());
+        let p = Puzzle("ABCDEFGHI".to_string());
+        let mut state = Niancat::new(&MULTIPLE_SOLUTIONS_CHECKWORD);
+        let set_command = Command::SetPuzzle(channel.clone(), p.clone());
+        let response = apply(&set_command, &mut state);
+
+        assert_eq!(response, Response::SetPuzzle(channel.clone(), p.clone(), MULTIPLE_SOLUTIONS_CHECKWORD.no_of_solutions_v));
+        assert_eq!(state.puzzle, Some(p));
+    }
+
     //
     // This is a simplified list of tests where we only test the response, not the new state.
     //
@@ -305,6 +324,13 @@ mod tests {
                 state: Niancat::new_with_puzzle(&DEFAULT_CHECKWORD, puzzle1.clone()),
                 command: Command::GetPuzzle(chan.clone()),
                 expected: Response::GetPuzzle(chan.clone(), puzzle1.clone(), 1)
+            },
+
+            CommandTest {
+                description: "Get puzzle, multiple solutions",
+                state: Niancat::new_with_puzzle(&MULTIPLE_SOLUTIONS_CHECKWORD, puzzle1.clone()),
+                command: Command::GetPuzzle(chan.clone()),
+                expected: Response::GetPuzzle(chan.clone(), puzzle1.clone(), 7)
             },
 
             CommandTest {
