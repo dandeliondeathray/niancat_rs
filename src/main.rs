@@ -48,7 +48,7 @@ fn main() {
         let r = client.login_and_run::<NiancatHandler>(&mut handler);
         match r {
             Ok(_) => {}
-            Err(err) => panic!("Error: {}", err),
+            Err(err) => println!("Error: {}", err),
         }
 
         print!("Reconnecting in 60 seconds... ");
