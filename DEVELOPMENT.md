@@ -1,17 +1,11 @@
 Development notes
 =================
 
-Missing modules
----------------
-
-- Slack handler (which ties together everything)
-
 Missing features
 ----------------
 
-- Validate todays puzzle
-- Check the number of solutions to todays puzzle
 - Store unsolutions
+- Integration tests for the event handler
 
 Parse module
 ------------
@@ -58,6 +52,30 @@ Slack handler
 -------------
 This will be a relatively simple part to implement, but the testing would really need some mock
 objects. Unfortunately there are no mature mock libraries for Rust that I'm aware.
+
+2016-09-19
+----------
+The bot has now been in production for a few days. I messed up error handling in the main function,
+causing it to panic more often than necessary.
+
+The next issue should be validation of the puzzle. This involves both ensuring that there is a
+solution to the puzzle, as well as counting the number of solutions. Counting the number of
+solutions is already supported by the response module, so it simply needs to be added to the logic
+module.
+
+Furthermore we need to report the solutions, and who solved it, when the next puzzle is set. This
+requires a bit more work, but nothing really massive.
+
+1. We need to store the solutions somewhere, when the puzzle is set. This needs to map against the
+   users that solved them. So that requires a map `Word -> User list`.
+2. On each valid solution we enter the user name into that map, for the given word.
+3. When the next puzzle is set we send the map with the response that the puzzle is set. Actually,
+   it will need to be in its own response. If the puzzle is set in a private channel, the all
+   solutions should still be sent to the main channel.
+4. The map should be reset.
+
+Note that on the first puzzle set on startup there will not be a map set. Hence, we should store it
+in an `Option<SolutionMap>`.
 
 2016-09-16
 ----------

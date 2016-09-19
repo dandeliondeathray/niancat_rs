@@ -1,4 +1,5 @@
 use types::*;
+use std::collections::HashMap;
 
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub struct SlackResponse(pub Channel, pub String);
@@ -6,6 +7,8 @@ pub struct SlackResponse(pub Channel, pub String);
 pub type TooMany = String;
 pub type TooFew = String;
 pub type WordHash = String;
+
+pub type SolutionsMap = HashMap<Word, Vec<String>>;
 
 #[derive(Eq, PartialEq, Debug)]
 pub enum Reason {
@@ -34,6 +37,7 @@ pub enum Response {
     InvalidPuzzle(Channel, Puzzle, InvalidPuzzleReason),
     CorrectSolution(Channel, Word),
     Notification(Name, WordHash),
+    SolutionsNotification(SolutionsMap),
     IncorrectSolution(Channel, Word, Reason),
     Help(Channel),
     Dual(Box<Response>, Box<Response>),
@@ -191,6 +195,8 @@ pub fn new_responder(main_channel: &Channel) -> Box<Respond> {
 mod tests {
     use super::*;
     use types::*;
+    use std::collections::HashMap;
+    use std::iter::FromIterator;
 
     #[test]
     #[should_panic]
@@ -383,6 +389,22 @@ mod tests {
                     TestEvent {
                         channel: Channel("D0".into()),
                         has_texts: vec!["FOO", "PUSSELDEF", "matchar inte", "många ABC", "få DEF"],
+                        has_not_texts: vec![],
+                    }
+                ]
+            },
+
+            ResponderTest {
+                description: "Notify main channel with solutions",
+                response: Response::SolutionsNotification(
+                    HashMap::from_iter(vec![
+                        (Word("DATORSPEL".into()), vec!["foo".to_string(), "bar".to_string()]),
+                        (Word("SPELDATOR".into()), vec![]),
+                        ].into_iter())),
+                expected: vec![
+                    TestEvent {
+                        channel: main_channel_id.clone(),
+                        has_texts: vec!["foo", "bar", "DATORSPEL", "SPELDATOR"],
                         has_not_texts: vec![],
                     }
                 ]
