@@ -44,6 +44,12 @@ pub fn parse_command(chan: &Channel, name: &Name, text: &String) -> CommandResul
             pos_args: Some(0),
             make: Box::new(|c, _| Command::Help(c)),
         },
+
+        CommandParser {
+            name: "!halp",
+            pos_args: Some(0),
+            make: Box::new(|c, _| Command::Help(c)),
+        },
     ];
 
     let parts: Vec<&str> = text.split_whitespace().collect();
