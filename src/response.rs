@@ -43,7 +43,7 @@ pub enum Response {
     IncorrectSolution(Channel, Word, Reason),
     Help(Channel),
     Dual(Box<Response>, Box<Response>),
-    Triple(Box<Response>, Box<Response>, Box<Response>),
+    //Triple(Box<Response>, Box<Response>, Box<Response>),
 }
 
 #[derive(PartialEq, Eq, Debug)]
@@ -186,15 +186,15 @@ impl Respond for SlackResponder {
                 f
             },
 
-            Response::Triple(ref first, ref second, ref third) => {
-                let mut f = self.serialize(&first);
-                let mut s = self.serialize(&second);
-                let mut t = self.serialize(&third);
-
-                f.append(&mut s);
-                f.append(&mut t);
-                f
-            },
+            //Response::Triple(ref first, ref second, ref third) => {
+            //    let mut f = self.serialize(&first);
+            //    let mut s = self.serialize(&second);
+            //    let mut t = self.serialize(&third);
+            //
+            //    f.append(&mut s);
+            //    f.append(&mut t);
+            //    f
+            //},
         }
     }
 
@@ -380,30 +380,30 @@ mod tests {
                 ]
             },
 
-            ResponderTest {
-                description: "Triple responses",
-                response: Response::Triple(
-                    Box::new(Response::CorrectSolution(Channel("D0".into()), Word("FOO".into()))),
-                    Box::new(Response::Notification(Name("erike".into()), "abcdef".into())),
-                    Box::new(Response::GetPuzzle(Channel("C0".into()), Puzzle("PUZZLEABC".into()), 1))),
-                expected: vec![
-                    TestEvent {
-                        channel: Channel("D0".into()),
-                        has_texts: vec!["FOO"],
-                        has_not_texts: vec![],
-                    },
-                    TestEvent {
-                        channel: Channel("C0123".into()),
-                        has_texts: vec!["erike", "abcdef"],
-                        has_not_texts: vec![],
-                    },
-                    TestEvent {
-                        channel: Channel("C0".into()),
-                        has_texts: vec!["PUZ ZLE ABC"],
-                        has_not_texts: vec!["1"],
-                    },
-                ]
-            },
+            //ResponderTest {
+            //    description: "Triple responses",
+            //    response: Response::Triple(
+            //        Box::new(Response::CorrectSolution(Channel("D0".into()), Word("FOO".into()))),
+            //        Box::new(Response::Notification(Name("erike".into()), "abcdef".into())),
+            //        Box::new(Response::GetPuzzle(Channel("C0".into()), Puzzle("PUZZLEABC".into()), 1))),
+            //    expected: vec![
+            //        TestEvent {
+            //            channel: Channel("D0".into()),
+            //            has_texts: vec!["FOO"],
+            //            has_not_texts: vec![],
+            //        },
+            //        TestEvent {
+            //            channel: Channel("C0123".into()),
+            //            has_texts: vec!["erike", "abcdef"],
+            //            has_not_texts: vec![],
+            //        },
+            //        TestEvent {
+            //            channel: Channel("C0".into()),
+            //            has_texts: vec!["PUZ ZLE ABC"],
+            //            has_not_texts: vec!["1"],
+            //        },
+            //    ]
+            //},
 
             ResponderTest {
                 description: "Help command",

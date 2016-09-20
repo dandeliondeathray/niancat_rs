@@ -2,7 +2,6 @@ use crypto::digest::Digest;
 use crypto::sha2::Sha256;
 use std::collections::{HashMap, HashSet};
 use std::iter::{FromIterator, repeat};
-use multimap::MultiMap;
 
 use types::*;
 use dictionary::*;
@@ -22,6 +21,7 @@ impl<'a> Niancat<'a> {
                 }
     }
 
+    #[allow(dead_code)]
     pub fn new_with_puzzle<T: CheckWord>(dictionary: &'a T, puzzle: Puzzle) -> Niancat<'a> {
         Niancat { puzzle: Some(puzzle),
                   solutions: SolutionsMap(HashMap::new()),
