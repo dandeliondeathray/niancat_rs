@@ -10,21 +10,21 @@ use response::*;
 
 pub struct Niancat<'a> {
     puzzle: Option<Puzzle>,
-    solutions: Option<SolutionsMap>,
+    solutions: SolutionsMap,
     dictionary: &'a CheckWord,
 }
 
 impl<'a> Niancat<'a> {
     pub fn new<T: CheckWord>(dictionary: &'a T) -> Niancat<'a> {
         Niancat { puzzle: None,
-                  solutions: None,
+                  solutions: SolutionsMap(HashMap::new()),
                   dictionary: dictionary,
                 }
     }
 
     pub fn new_with_puzzle<T: CheckWord>(dictionary: &'a T, puzzle: Puzzle) -> Niancat<'a> {
         Niancat { puzzle: Some(puzzle),
-                  solutions: None,
+                  solutions: SolutionsMap(HashMap::new()),
                   dictionary: dictionary,
                 }
     }
@@ -65,13 +65,12 @@ fn set_puzzle(state: &mut Niancat, channel: &Channel, puzzle: &Puzzle) -> Respon
         state.puzzle = Some(puzzle.clone());
         let new_solutions = state.dictionary.find_solutions(puzzle).unwrap();
 
-        state.solutions = Some(SolutionsMap(
-            HashMap::from_iter(new_solutions.into_iter().zip(repeat(vec![])))));
+        state.solutions = SolutionsMap(HashMap::from_iter(new_solutions.into_iter().zip(repeat(vec![]))));
 
         let set_response = Response::SetPuzzle(channel.clone(), puzzle.clone(), state.dictionary.no_of_solutions(&puzzle));
 
-        if let Some(solutions) = old_solutions {
-            let notification_response = Response::SolutionsNotification(solutions);
+        if !old_solutions.0.is_empty() {
+            let notification_response = Response::SolutionsNotification(old_solutions.clone());
             return Response::Dual(Box::new(set_response), Box::new(notification_response));
         } else {
             return set_response;
@@ -96,6 +95,9 @@ fn check_solution(state: &mut Niancat, channel: &Channel, name: &Name, word: &Wo
         }
 
         if state.dictionary.is_solution(&word) {
+            let mut word_entry = state.solutions.0.entry(normalized_word.clone()).or_insert(vec![]);
+            (*word_entry).push(name.0.clone());
+
             let hash = solution_hash(&normalized_word, &name);
             let correct_solution = Response::CorrectSolution(channel.clone(),
                 word.clone());
@@ -271,7 +273,7 @@ mod tests {
                         (Word("DATORSPEL".into()), vec!["foo".to_string(), "bar".to_string()]),
                         (Word("SPELDATOR".into()), vec![]),
                         ].into_iter()));
-        state.solutions = Some(expected_solutions.clone());
+        state.solutions = expected_solutions.clone();
 
         let set_command = Command::SetPuzzle(channel.clone(), p.clone());
         let response = apply(&set_command, &mut state);
@@ -289,12 +291,50 @@ mod tests {
                                 Box::new(notification_response)));
         assert_eq!(state.puzzle, Some(p));
 
-        assert_eq!(state.solutions.unwrap().0,
-                HashMap::from_iter(vec![
-                    (Word("ABCDEFGHI".into()), vec![]),
-                ].into_iter()));
+        assert_eq!(state.solutions,
+                   SolutionsMap(HashMap::from_iter(vec![
+                        (Word("ABCDEFGHI".into()), vec![]),
+                   ].into_iter())));
     }
 
+    #[test]
+    fn get_puzzle_test() {
+        let channel = Channel("channel".into());
+        let p = Puzzle("ATORSPELD".into());
+        let mut state = Niancat::new_with_puzzle(&DEFAULT_CHECKWORD, p);
+        let expected_solutions = SolutionsMap(
+            HashMap::from_iter(vec![
+                        (Word("DATORSPEL".into()), vec![]),
+                        (Word("SPELDATOR".into()), vec![]),
+                        ].into_iter()));
+        state.solutions = expected_solutions.clone();
+
+        let cmd = Command::CheckSolution(channel.clone(), Name("foo".into()), Word("DATORSPEL".into()));
+        let response = apply(&cmd, &mut state);
+        match response {
+            Response::Dual(_, _) => {},
+            r => assert!(false, "Expected a successful Dual response, but got {:?}", r),
+        };
+
+        assert_eq!(state.solutions.clone(),
+                   SolutionsMap(HashMap::from_iter(vec![
+                       (Word("DATORSPEL".into()), vec!["foo".into()]),
+                       (Word("SPELDATOR".into()), vec![]),
+                   ].into_iter())));
+
+        // Users "foo" and "bar" both solve "SPELDATOR".
+        let cmd = Command::CheckSolution(channel.clone(), Name("foo".into()), Word("SPELDATOR".into()));
+        apply(&cmd, &mut state);
+
+        let cmd = Command::CheckSolution(channel.clone(), Name("bar".into()), Word("SPELDATOR".into()));
+        apply(&cmd, &mut state);
+
+        assert_eq!(state.solutions.clone(),
+                   SolutionsMap(HashMap::from_iter(vec![
+                       (Word("DATORSPEL".into()), vec!["foo".into()]),
+                       (Word("SPELDATOR".into()), vec!["foo".into(), "bar".into()]),
+                   ].into_iter())));
+    }
 
     #[test]
     fn set_invalid_puzzle_test() {
@@ -442,7 +482,7 @@ mod tests {
 
         for mut test in tests {
             let actual = apply(&test.command, &mut test.state);
-            assert_eq!(actual, test.expected);
+            assert_eq!(actual, test.expected, "{}", test.description);
         }
     }
 }
