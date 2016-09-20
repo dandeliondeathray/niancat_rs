@@ -9,8 +9,8 @@ pub type TooMany = String;
 pub type TooFew = String;
 pub type WordHash = String;
 
-#[derive(Eq, PartialEq, Debug)]
-pub struct SolutionsMap(HashMap<Word, Vec<String>>);
+#[derive(Eq, PartialEq, Debug, Clone)]
+pub struct SolutionsMap(pub HashMap<Word, Vec<String>>);
 
 #[derive(Eq, PartialEq, Debug)]
 pub enum Reason {

@@ -10,21 +10,21 @@ use response::*;
 
 pub struct Niancat<'a> {
     puzzle: Option<Puzzle>,
-    solutions: MultiMap<Word, String>,
+    solutions: Option<SolutionsMap>,
     dictionary: &'a CheckWord,
 }
 
 impl<'a> Niancat<'a> {
     pub fn new<T: CheckWord>(dictionary: &'a T) -> Niancat<'a> {
         Niancat { puzzle: None,
-                  solutions: MultiMap::new(),
+                  solutions: None,
                   dictionary: dictionary,
                 }
     }
 
     pub fn new_with_puzzle<T: CheckWord>(dictionary: &'a T, puzzle: Puzzle) -> Niancat<'a> {
         Niancat { puzzle: Some(puzzle),
-                  solutions: MultiMap::new(),
+                  solutions: None,
                   dictionary: dictionary,
                 }
     }
@@ -60,8 +60,22 @@ fn set_puzzle(state: &mut Niancat, channel: &Channel, puzzle: &Puzzle) -> Respon
         return Response::InvalidPuzzle(channel.clone(), puzzle.clone(), InvalidPuzzleReason::NotNineCharacters);
     }
     if state.dictionary.has_solution(&puzzle) {
+        let old_solutions = state.solutions.clone();
+
         state.puzzle = Some(puzzle.clone());
-        Response::SetPuzzle(channel.clone(), puzzle.clone(), state.dictionary.no_of_solutions(&puzzle))
+        let new_solutions = state.dictionary.find_solutions(puzzle).unwrap();
+
+        state.solutions = Some(SolutionsMap(
+            HashMap::from_iter(new_solutions.into_iter().zip(repeat(vec![])))));
+
+        let set_response = Response::SetPuzzle(channel.clone(), puzzle.clone(), state.dictionary.no_of_solutions(&puzzle));
+
+        if let Some(solutions) = old_solutions {
+            let notification_response = Response::SolutionsNotification(solutions);
+            return Response::Dual(Box::new(set_response), Box::new(notification_response));
+        } else {
+            return set_response;
+        }
     } else {
         Response::InvalidPuzzle(channel.clone(), puzzle.clone(), InvalidPuzzleReason::NotInDictionary)
     }
@@ -157,6 +171,8 @@ mod tests {
     use types::*;
     use dictionary::*;
     use response::*;
+    use std::collections::HashMap;
+    use std::iter::FromIterator;
 
     const HASH_TESTS: &'static [(&'static str, &'static str, &'static str)] = &[
         ("GALLTJUTA", "f00ale",   "f72e9a9523bbc72bf7366a58a04046408d2d88ea811afdc9a459d24e077fa71d"),
@@ -213,13 +229,6 @@ mod tests {
         find_solutions_v: None,
         has_solution_v: false };
 
-    static MULTIPLE_SOLUTIONS_CHECKWORD: FakeCheckWord = FakeCheckWord {
-        is_solution_v: true,
-        no_of_solutions_v: 7,
-        find_solutions_v: None,
-        has_solution_v: true };
-
-
     #[test]
     fn solution_hash_test() {
         for &(word, nick, expected) in HASH_TESTS {
@@ -253,13 +262,37 @@ mod tests {
     #[test]
     fn set_puzzle_test() {
         let channel = Channel("channel".into());
-        let p = Puzzle("ABCDEFGHI".into());
-        let mut state = Niancat::new(&DEFAULT_CHECKWORD);
+        let p = Puzzle("ATORSPELD".into());
+        let mut check_word = DEFAULT_CHECKWORD.clone();
+        check_word.find_solutions_v = Some(vec![Word("ABCDEFGHI".into())]);
+        let mut state = Niancat::new(&check_word);
+        let expected_solutions = SolutionsMap(
+            HashMap::from_iter(vec![
+                        (Word("DATORSPEL".into()), vec!["foo".to_string(), "bar".to_string()]),
+                        (Word("SPELDATOR".into()), vec![]),
+                        ].into_iter()));
+        state.solutions = Some(expected_solutions.clone());
+
         let set_command = Command::SetPuzzle(channel.clone(), p.clone());
         let response = apply(&set_command, &mut state);
 
-        assert!(response == Response::SetPuzzle(channel.clone(), p.clone(), 1));
-        assert!(state.puzzle == Some(p));
+        let expected_solutions = SolutionsMap(
+            HashMap::from_iter(vec![
+                        (Word("DATORSPEL".into()), vec!["foo".to_string(), "bar".to_string()]),
+                        (Word("SPELDATOR".into()), vec![]),
+                        ].into_iter()));
+        let set_response = Response::SetPuzzle(channel.clone(), p.clone(), 1);
+        let notification_response = Response::SolutionsNotification(expected_solutions);
+
+        assert_eq!(response, Response::Dual(
+                                Box::new(set_response),
+                                Box::new(notification_response)));
+        assert_eq!(state.puzzle, Some(p));
+
+        assert_eq!(state.solutions.unwrap().0,
+                HashMap::from_iter(vec![
+                    (Word("ABCDEFGHI".into()), vec![]),
+                ].into_iter()));
     }
 
 
@@ -285,13 +318,19 @@ mod tests {
 
     #[test]
     fn set_puzzle_multiple_solutions() {
+        let check_word: FakeCheckWord = FakeCheckWord {
+            is_solution_v: true,
+            no_of_solutions_v: 7,
+            find_solutions_v: Some(vec![Word("ABCDEFGHI".into())]),
+            has_solution_v: true };
+
         let channel = Channel("channel".into());
         let p = Puzzle("ABCDEFGHI".to_string());
-        let mut state = Niancat::new(&MULTIPLE_SOLUTIONS_CHECKWORD);
+        let mut state = Niancat::new(&check_word);
         let set_command = Command::SetPuzzle(channel.clone(), p.clone());
         let response = apply(&set_command, &mut state);
 
-        assert_eq!(response, Response::SetPuzzle(channel.clone(), p.clone(), MULTIPLE_SOLUTIONS_CHECKWORD.no_of_solutions_v));
+        assert_eq!(response, Response::SetPuzzle(channel.clone(), p.clone(), check_word.no_of_solutions_v));
         assert_eq!(state.puzzle, Some(p));
     }
 
@@ -318,6 +357,12 @@ mod tests {
 
         let puzzle1 = Puzzle("ABCDEFGHI".to_string());
 
+        let multiple_solutions_checkword: FakeCheckWord = FakeCheckWord {
+            is_solution_v: true,
+            no_of_solutions_v: 7,
+            find_solutions_v: None,
+            has_solution_v: true };
+
         let tests: Vec<CommandTest> = vec![
             CommandTest {
                 description: "Get puzzle",
@@ -328,7 +373,7 @@ mod tests {
 
             CommandTest {
                 description: "Get puzzle, multiple solutions",
-                state: Niancat::new_with_puzzle(&MULTIPLE_SOLUTIONS_CHECKWORD, puzzle1.clone()),
+                state: Niancat::new_with_puzzle(&multiple_solutions_checkword, puzzle1.clone()),
                 command: Command::GetPuzzle(chan.clone()),
                 expected: Response::GetPuzzle(chan.clone(), puzzle1.clone(), 7)
             },
