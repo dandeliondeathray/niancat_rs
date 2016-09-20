@@ -1,5 +1,6 @@
 use types::*;
 use std::collections::HashMap;
+use std::fmt;
 
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub struct SlackResponse(pub Channel, pub String);
@@ -8,7 +9,8 @@ pub type TooMany = String;
 pub type TooFew = String;
 pub type WordHash = String;
 
-pub type SolutionsMap = HashMap<Word, Vec<String>>;
+#[derive(Eq, PartialEq, Debug)]
+pub struct SolutionsMap(HashMap<Word, Vec<String>>);
 
 #[derive(Eq, PartialEq, Debug)]
 pub enum Reason {
@@ -91,6 +93,17 @@ Kommandon:
 Alla dessa kommandon kan man köra både i kanalen och i privat-meddelande till tiancat.
 "#;
 
+impl fmt::Display for SolutionsMap {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        try!(write!(f, "*Gårdagens lösningar:*\n"));
+
+        for (&Word(ref word), solvers) in &self.0 {
+            try!(write!(f, "*{}*: {}\n", word, solvers.join(", ")));
+        }
+        Ok(())
+    }
+}
+
 impl Respond for SlackResponder {
     fn serialize(&self, r: &Response) -> Vec<SlackResponse> {
         match *r {
@@ -157,6 +170,10 @@ impl Respond for SlackResponder {
                     format!("Ordet {} matchar inte dagens nia {}. För många {}, för få {}.", w, puzzle, too_many, too_few))
             ],
 
+            Response::SolutionsNotification(ref solutions) => vec![
+                SlackResponse(self.main_channel.clone(), format!("{}", solutions)),
+            ],
+
             Response::Help(ref channel) => vec![
                 SlackResponse(channel.clone(), format!("{}", HELP_TEXT))
             ],
@@ -167,9 +184,17 @@ impl Respond for SlackResponder {
 
                 f.append(&mut s);
                 f
-            }
+            },
 
-            _ => vec![SlackResponse(Channel("XXXXXX".into()), "".into())],
+            Response::Triple(ref first, ref second, ref third) => {
+                let mut f = self.serialize(&first);
+                let mut s = self.serialize(&second);
+                let mut t = self.serialize(&third);
+
+                f.append(&mut s);
+                f.append(&mut t);
+                f
+            },
         }
     }
 
@@ -356,6 +381,31 @@ mod tests {
             },
 
             ResponderTest {
+                description: "Triple responses",
+                response: Response::Triple(
+                    Box::new(Response::CorrectSolution(Channel("D0".into()), Word("FOO".into()))),
+                    Box::new(Response::Notification(Name("erike".into()), "abcdef".into())),
+                    Box::new(Response::GetPuzzle(Channel("C0".into()), Puzzle("PUZZLEABC".into()), 1))),
+                expected: vec![
+                    TestEvent {
+                        channel: Channel("D0".into()),
+                        has_texts: vec!["FOO"],
+                        has_not_texts: vec![],
+                    },
+                    TestEvent {
+                        channel: Channel("C0123".into()),
+                        has_texts: vec!["erike", "abcdef"],
+                        has_not_texts: vec![],
+                    },
+                    TestEvent {
+                        channel: Channel("C0".into()),
+                        has_texts: vec!["PUZ ZLE ABC"],
+                        has_not_texts: vec!["1"],
+                    },
+                ]
+            },
+
+            ResponderTest {
                 description: "Help command",
                 response: Response::Help(Channel("C0".into())),
                 expected: vec![
@@ -397,10 +447,10 @@ mod tests {
             ResponderTest {
                 description: "Notify main channel with solutions",
                 response: Response::SolutionsNotification(
-                    HashMap::from_iter(vec![
+                    SolutionsMap(HashMap::from_iter(vec![
                         (Word("DATORSPEL".into()), vec!["foo".to_string(), "bar".to_string()]),
                         (Word("SPELDATOR".into()), vec![]),
-                        ].into_iter())),
+                        ].into_iter()))),
                 expected: vec![
                     TestEvent {
                         channel: main_channel_id.clone(),
