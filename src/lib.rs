@@ -93,6 +93,10 @@ impl<'a> NiancatHandler<'a> {
                 let channel = channel.clone().unwrap();
                 let text = text.clone().unwrap();
 
+                if text.contains("är inte nio tecken") {
+                    return;
+                }
+
                 self.handle_command(client, &Channel(channel), &Name(name), &text);
             },
 
